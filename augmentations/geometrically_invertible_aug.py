@@ -1,5 +1,5 @@
 import torch
-from transforms import RandomResizedCrop, RandomHorizontalFlip
+from augmentations.transforms import RandomResizedCrop, RandomHorizontalFlip
 import torchvision.transforms as T
 
 imagenet_mean_std = [[0.485, 0.456, 0.406],[0.229, 0.224, 0.225]]
@@ -25,21 +25,29 @@ class GeometricallyInvertibleAugmentation():
             T.Normalize(*mean_std)
         ])
 
-        self.geometric_inverse = T.Compose([
+        self.geometric_inverse_transform = T.Compose([
             random_horizontal_flip.get_inverse(),
             random_resize_crop.get_inverse()
         ])
+        self.geometric_transform = T.Compose([
+            random_horizontal_flip,
+            random_resize_crop
+        ])
 
-    def forward(self, x):
+    def __call__(self, x):
         if not torch.is_tensor(x):
             x = T.ToTensor()(x) 
         return self.transform(x)
 
     def geometric_inverse(self, x):
-        print(x.min(), x.max())
         if not torch.is_tensor(x):
             x = T.ToTensor()(x)
-        return self.geometric_inverse(x)
+        return self.geometric_inverse_transform(x)
+
+    def geometric_only(self, x):
+        if not torch.is_tensor(x):
+            x = T.ToTensor()(x)
+        return self.geometric_transform(x)
 
     # def __call__(self, x):
     #     x1 = self.transform(x)

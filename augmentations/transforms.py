@@ -15,9 +15,6 @@ from copy import deepcopy
 class RandomResizedCrop(OriginalRandomResizedCrop):
     def __init__(self,  size, scale=(0.08, 1.0), ratio=(3. / 4., 4. / 3.), interpolation=InterpolationMode.BILINEAR):
         super().__init__(size, scale, ratio, interpolation)
-        self.size
-        self.scale = scale 
-        self.ration = ratio
         self.randomize()
         self.apply_inverse = False
     
