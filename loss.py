@@ -24,10 +24,6 @@ def world_to_img(xyz, fx=320, fy=320, cx=320, cy=240):
 
 
 
-bg_fg_threshold = 1.0
-single_obj_threshold = 0.5
-
-
 def get_match_loss(descriptors, matches):
     assert(len(descriptors) == len(matches) == 2)
     matched_descriptors = [descriptors[i][:, matches[i].T[0], matches[i].T[1]] for i in range(2)]
@@ -36,26 +32,28 @@ def get_match_loss(descriptors, matches):
     return match_loss
 
 
+# Computes the max(0, M - D(I_a,I_b,u_a,u_b))^2 term and
+# normalizes using the number of hard negatives.
+# TODO: go back and justify the hard negative condition.
 def get_nonmatch_loss(d, nonmatch_pair, M_d=0.5, M_p=100, L2=True):
-    # Computes the max(0, M - D(I_a,I_b,u_a,u_b))^2 term
-    total_loss = 0
-    for i in range(d.size(0)):
-        if len(nonmatch_pair[i]) > 0:
-            D = (d[i, :, nonmatch_pair[i][1], nonmatch_pair[i][0]] - d[i, :, nonmatch_pair[i][3], nonmatch_pair[i][2]]).norm(2, dim=0)
-            loss = torch.clamp(M_d - D, min=0).pow(2)
-            if L2:
-                loss = loss * l2_pixel_loss(nonmatch_pair[i], M_p)
-            if len(torch.nonzero(loss, as_tuple=False))!=0:
-                loss = loss.sum() / len(torch.nonzero(loss, as_tuple=False))  # divided by #hard negative samples
-            else:
-                loss = loss.mean()
-            total_loss += loss
-    return total_loss
+    p0, p1 = nonmatch_pair[0], nonmatch_pair[1]
+    delta = (d[:, p0[0], p0[1]] - d[:, p1[0], p1[1]]).norm(2, dim=0)
+    loss = torch.clamp(M_d - delta, min=0).pow(2)
+    N = len(torch.nonzero(loss, as_tuple=False)) 
+    if N !=0:
+        loss = loss.sum() / N  # divided by hard negative samples
+    else:
+        loss = loss.mean()
 
-def l2_pixel_loss(pair, M_p):
-    delta = (pair[:2] - pair[2:]).float().norm(2, dim=0)
-    l2_loss = (1.0 / M_p * torch.clamp(delta, max=M_p))
-    return l2_loss
+    return loss
+
+
+# # :param: pairs -> shape: 4 x C x H x W
+# # :param: M_p threshold distance
+# def l2_pixel_loss(pair, M_p):
+#     delta = (pair[:2] - pair[2:]).float().norm(2, dim=0)
+#     l2_loss = (1.0 / M_p * torch.clamp(delta, max=M_p))
+#     return l2_loss
 
 
 # This seems to push all descriptors to be equal
@@ -87,23 +85,28 @@ def fg_bg_labels_loss(d, mask):
     return F.binary_cross_entropy_with_logits(d, 1-mask.float())
 
 
-def get_loss(descriptors, matching_pairs, targets, w_match=1, w_bg=1, w_single=1):
+def get_loss(descriptors, matching_pairs, non_match_pair, targets, w_match=1, w_bg=1, w_single=1):
     """
     Compares 2 descriptors expects a batch of 2
     :param: matching_pairs is a list of 2 tensors containing ordered indices of matching pairs of pixels
     """
     assert(descriptors.shape[0] == 2)
 
+    bg_fg_threshold = 1.0
+    single_obj_threshold = 0.5
+
     d_a, d_b = descriptors[0], descriptors[1]
-    a_descriptor, b_descriptor = d_a[:-1].sigmoid(), d_b[:-1].sigmoid()
+    # descriptors = [d_a[:-1].sigmoid(), d_b[:-1].sigmoid()]
+    descriptors = [d_a[:3].sigmoid(), d_b[:3].sigmoid()]
     
     match_loss = None
     if matching_pairs is not None:
         match_pair = torch.stack(matching_pairs)
-        match_loss = get_match_loss([a_descriptor, b_descriptor], match_pair) * w_match
+        match_loss = get_match_loss(descriptors, match_pair) * w_match
     
     divergence_loss, non_match_loss_bg, non_match_loss_single = 0, 0, 0
-    # for i, d in enumerate([a_descriptor, b_descriptor]): # removed torch.stack op to allow different n_pair/nonpair within batch
+    for i, (non_matches, descriptor) in enumerate(zip(non_match_pair, descriptors)): # removed torch.stack op to allow different n_pair/nonpair within batch
+        non_match_loss_single += get_nonmatch_loss(descriptor, non_matches, single_obj_threshold, 50) * w_single
     #     non_match_loss_bg += one_pixel_with_masked_pixels(d, [t['nonpair_bg'][:2] for t in targets], [t['bg_mask'] for t in targets])*w_bg
     #     non_match_loss_single += get_nonmatch_loss(d, [t['nonpair_singleobj'] for t in targets], single_obj_threshold, 50) * w_single
     #     divergence_loss += divergence_loss_single_object(d, [t['fg_mask'+str(i)] for t in targets])
