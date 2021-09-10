@@ -26,7 +26,7 @@ def world_to_img(xyz, fx=320, fy=320, cx=320, cy=240):
 
 def get_match_loss(descriptors, matches):
     assert(len(descriptors) == len(matches) == 2)
-    matched_descriptors = [descriptors[i][:, matches[i].T[0], matches[i].T[1]] for i in range(2)]
+    matched_descriptors = [descriptors[i][:, matches[i][0], matches[i][1]] for i in range(2)]
     num_matches = len(matches[0])
     match_loss = 1.0 / num_matches * (matched_descriptors[0] - matched_descriptors[1]).pow(2).sum()
     return match_loss
@@ -85,13 +85,12 @@ def fg_bg_labels_loss(d, mask):
     return F.binary_cross_entropy_with_logits(d, 1-mask.float())
 
 
-def get_loss(descriptors, matching_pairs, non_match_pair, targets, w_match=1, w_bg=1, w_single=1):
+def get_loss(descriptors, matching_pairs, non_match_pair, w_match=1, w_bg=1, w_single=1):
     """
     Compares 2 descriptors expects a batch of 2
     :param: matching_pairs is a list of 2 tensors containing ordered indices of matching pairs of pixels
     """
     assert(descriptors.shape[0] == 2)
-
     bg_fg_threshold = 1.0
     single_obj_threshold = 0.5
 
@@ -105,8 +104,8 @@ def get_loss(descriptors, matching_pairs, non_match_pair, targets, w_match=1, w_
         match_loss = get_match_loss(descriptors, match_pair) * w_match
     
     divergence_loss, non_match_loss_bg, non_match_loss_single = 0, 0, 0
-    for i, (non_matches, descriptor) in enumerate(zip(non_match_pair, descriptors)): # removed torch.stack op to allow different n_pair/nonpair within batch
-        non_match_loss_single += get_nonmatch_loss(descriptor, non_matches, single_obj_threshold, 50) * w_single
+    for i, (matches, non_matches, descriptor) in enumerate(zip(matching_pairs, non_match_pair, descriptors)): # removed torch.stack op to allow different n_pair/nonpair within batch
+        non_match_loss_single += get_nonmatch_loss(descriptor, [matches, non_matches], single_obj_threshold, 50) * w_single
     #     non_match_loss_bg += one_pixel_with_masked_pixels(d, [t['nonpair_bg'][:2] for t in targets], [t['bg_mask'] for t in targets])*w_bg
     #     non_match_loss_single += get_nonmatch_loss(d, [t['nonpair_singleobj'] for t in targets], single_obj_threshold, 50) * w_single
     #     divergence_loss += divergence_loss_single_object(d, [t['fg_mask'+str(i)] for t in targets])

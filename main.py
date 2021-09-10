@@ -11,6 +11,7 @@ class cfg():
     workers = 1
 
     device = 'cuda:0'
+    # device = 'cpu'
 
 #######################################################################################
 #######################################################################################
@@ -41,7 +42,6 @@ def sample_from_pair(images, augmentors):
     images are of shape NxCxHxW
     augmentors is a list of N invertible functions used to augment.
     '''
-    samples = []
     sh = images.shape
     masks = torch.zeros((sh[0], sh[2], sh[3]))
     for i in range(2):
@@ -49,8 +49,11 @@ def sample_from_pair(images, augmentors):
         collapsed = inv.sum(dim=0).squeeze()
         masks[i, collapsed!=0] = 1
     mask = torch.prod(masks, 0)
-    samples = sample_from_mask(mask, 2500)
-    non_matches = sample_non_matches(samples[-1], sigma=50)
+    samples = sample_from_mask(mask, 5000)
+    
+    if len(samples) == 0: return mask, samples, samples
+    
+    non_matches = sample_non_matches(samples, sigma=50, limits=(480, 640))
     return mask, samples, non_matches
 
 
@@ -59,7 +62,7 @@ if __name__ == '__main__':
 
     dataloader = make_data_loader(split='train', args=cfg())
     backbone = deeplabv3_resnet50(num_classes=3).to(device)
-    optimizer = torch.optim.Adam(backbone.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(backbone.parameters(), lr=0.0001)
 
     loss_accumulated = []
     IMAGE_SHAPE = (480, 640)
@@ -67,43 +70,28 @@ if __name__ == '__main__':
     for epoch in range(20):
         for i, (images, batch) in enumerate(tqdm(dataloader)):
 
-            # masks = get_batch_masks(batch)
-
-            # samples, non_matches = [], []
-            # samples_masks, non_matches_mask = [], [] 
-            # for mask in masks: 
-            #     samples.append(sample_from_mask(mask, 2500))
-            #     non_matches.append(sample_non_matches(samples[-1], sigma=50))
-            #     samples_masks.append(get_int32_mask_given_indices(samples[-1], IMAGE_SHAPE))
-            #     non_matches_mask.append(get_int32_mask_given_indices(non_matches[-1], IMAGE_SHAPE))
-            # matched_indices = get_matches_from_int_masks(samples_masks[0], samples_masks[1])
-            # non_matching_indices = get_matches_from_int_masks(non_matches_mask[0], non_matches_mask[1])
 
             images = images.to(device)
             descriptors = backbone(images)['out']
             
-            
-            
-            
-            # inv_images0 = batch[0]['augmentor'].geometric_inverse(images[0])
-            # inv_images1 = batch[1]['augmentor'].geometric_inverse(images[1])
 
             inv_desc0 = batch[0]['augmentor'].geometric_inverse(descriptors[0])
             inv_desc1 = batch[1]['augmentor'].geometric_inverse(descriptors[1])
-            descriptors = torch.stack((inv_desc0, inv_desc1))
+            inv_descriptors = torch.stack((inv_desc0, inv_desc1))
 
             m, s, non = sample_from_pair(images, [batch[i]['augmentor'] for i in range(2)])
-            matched_indices = [s, s]
-            non_matching_indices = [non, non]
-            loss = get_loss(descriptors, matched_indices, non_matching_indices, batch)
-
-
-
-            # loss = get_loss(descriptors, matched_indices, non_matching_indices, batch)
-            loss_accumulated.append(torch.tensor(0.0).to(device))
-            for l in loss.values(): loss_accumulated[-1] += l
-            print(loss)
-            if i % 2 == 0:
+            if len(s) == 0 or len(non) == 0: 
+                print('HHHHHH got non overlapping masks')
+                continue
+            else:
+                matched_indices = [s, s]
+                non_matching_indices = [non, non]
+                loss = get_loss(inv_descriptors, matched_indices, non_matching_indices, w_match=0.5)
+                loss_accumulated.append(torch.tensor(0.0).to(device))
+                for l in loss.values(): loss_accumulated[-1] += l
+                print(loss_accumulated[-1])
+    
+            if i % 1 == 0:
                 (sum(loss_accumulated) / len(loss_accumulated)).backward()
                 optimizer.step()
                 optimizer.zero_grad()
@@ -136,6 +124,10 @@ if __name__ == '__main__':
                 plt.figure()
                 plt.imshow(m.clone().detach().cpu().numpy())
                 m2 = get_int32_mask_given_indices(s, IMAGE_SHAPE)
+                m2[m2!=0] = 1
+                plt.figure()
+                plt.imshow(m2.clone().detach().cpu().numpy())
+                m2 = get_int32_mask_given_indices(non, IMAGE_SHAPE)
                 m2[m2!=0] = 1
                 plt.figure()
                 plt.imshow(m2.clone().detach().cpu().numpy())

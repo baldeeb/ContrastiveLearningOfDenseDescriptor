@@ -12,64 +12,6 @@ from augmentations.geometrically_invertible_aug import GeometricallyInvertibleAu
 
 from util.unsorted_utils import get_matches_from_int_masks
 
-def calculate_more_masks_for_whatever_reason(data, n_nonpair_singleobj=1000, n_nonpair_bg=1000):
-    point_masks, point_pairs = {}, {}
-    for obj in data['objmaskid']:
-        # if self.obj_class in obj:
-        uv0 = [torch.where(data['mask'] == id) for id in data['objmaskid'][obj]]
-        if min([x[0].size(0) for x in uv0]) > 0:
-            point_masks[obj] = torch.stack([torch.cat([x[1] for x in uv0]), torch.cat([x[0] for x in uv0])])
-    point_pairs['fg_mask'] = point_masks
-    
-    if point_masks != {}:
-        # random foreground <-> background pixels
-        all_bg_index = torch.flip(torch.stack(torch.where(data['classmask'] == 0)), [0])
-        fg_index = []
-        n_fg_pixels = sum([index.size(1) for _, index in point_masks.items()])
-        for _, index in point_masks.items():
-            rand_index = torch.randperm(index.size(1))[:index.size(1) * n_nonpair_bg // n_fg_pixels]
-            fg_index.append(index[:, rand_index])
-        fg_index = torch.cat(fg_index, dim=1)
-        if fg_index.size(1) < n_nonpair_bg:
-            fg_index = torch.cat([fg_index, fg_index[:, fg_index.size(1) - n_nonpair_bg:]], dim=1)
-        rand_index = torch.randperm(all_bg_index.size(1))[:fg_index.size(1)]
-        bg_index = all_bg_index[:, rand_index]
-        point_pairs['nonpair_bg'] = torch.cat((fg_index, bg_index), dim=0)
-        point_pairs['bg_mask'] = data['classmask'] == 0
-        # random two foreground pixels on every single object
-        single_index = []
-        for _, index in point_masks.items():
-            n_index = index.size(1) * n_nonpair_singleobj // n_fg_pixels
-            rand_index1 = torch.randperm(index.size(1))[:n_index + 10] # leave some extra to remove repeating pairs
-            rand_index2 = torch.randperm(index.size(1))[:n_index + 10]
-            non_repeat_index = rand_index1 != rand_index2
-            single_index.append(torch.cat([index[:, rand_index1[non_repeat_index][:n_index]], index[:, rand_index2[non_repeat_index][:n_index]]], dim=0))
-        single_index = torch.cat(single_index, dim=1)
-        if single_index.size(1) < n_nonpair_singleobj:
-            single_index = torch.cat([single_index, single_index[:, single_index.size(1) - n_nonpair_singleobj:]], dim=1)
-        point_pairs['nonpair_singleobj'] = single_index
-    else:
-        for name in ['nonpair_bg', 'nonpair_singleobj']:
-            point_pairs[name] = torch.tensor([])
-        point_pairs['bg_mask'] = torch.ones(data['classmask'].size(), dtype=torch.bool)
-    return point_pairs
-
-
-# def collate_fn(batch):
-#     img_a, img_b, targets = tuple(zip(*batch))
-#     min_npair = float('inf')
-#     for i in range(len(targets)):
-#         if len(targets[i]['pair']) > 0:
-#             min_npair = min(min_npair, targets[i]['pair'].size(1))
-#         else:
-#             min_npair = 0
-#             break
-#     for i in range(len(targets)):
-#         if min_npair > 0:
-#             targets[i]['pair'] = targets[i]['pair'][:, :min_npair]
-#         else:
-#             del targets[i]['pair']
-#     return torch.stack(img_a), torch.stack(img_b), targets
 
 
 def collate_fn(batch):
@@ -102,6 +44,7 @@ def collate_pair_of_augments(batch):
         shape = original_data['image'].shape[1:] 
         original_data['unique_mask'] = torch.arange(1, shape[0]*shape[1]+1).reshape((shape))
         pair = [augment_unreal_data(original_data) for i in range(num_augs)] #TODO: return pairs
+        
         new_batch.extend(pair)
     return collate_fn(new_batch)
 
@@ -127,10 +70,17 @@ def sample_from_mask(mask, k, blur=None):
     samples = random.sample(mask_indices.numpy().tolist(), k)
     return torch.tensor(samples).T
 
-def sample_non_matches(sampled_indices, sigma):
-    flattend = sampled_indices.flatten().float()
-    non_matches = torch.normal(flattend, sigma).long()
-    return torch.reshape(non_matches, (2, -1))
+def sample_non_matches(sampled_indices, sigma, limits=None):
+    zeros = torch.zeros_like(sampled_indices.float())
+    offsets = torch.normal(zeros, sigma).long()
+    N = sampled_indices + offsets
+    print(N.shape)
+    if limits is not None:
+        limits = torch.tensor(limits).long()
+        N = N.where(N[:] > 0, torch.tensor(0).long())
+        N[0] = N[0].where(N[0] < limits[0], limits[0]-1)
+        N[1] = N[1].where(N[1] < limits[1], limits[1]-1)
+    return torch.reshape(N, (2, -1))
     
 
 class Unreal_parts(torch.utils.data.Dataset):
@@ -224,3 +174,57 @@ class Unreal_parts(torch.utils.data.Dataset):
         data['objpose'] = obj2pose
         data['objcuboid'] = obj2cuboid
         return data
+
+
+
+
+
+
+# Has not been inspected
+def get_mask_of_all_objects(data):
+    point_masks = {}
+    for obj in data['objmaskid']:
+        uv0 = [torch.where(data['mask'] == id) for id in data['objmaskid'][obj]]
+        if min([x[0].size(0) for x in uv0]) > 0:
+            point_masks[obj] = torch.stack([torch.cat([x[1] for x in uv0]), torch.cat([x[0] for x in uv0])])
+    return point_masks
+
+
+def calculate_more_masks_for_whatever_reason(data, n_nonpair_singleobj=1000, n_nonpair_bg=1000):
+    point_pairs = {}
+    point_masks = get_mask_of_all_objects(data)
+    point_pairs['fg_mask'] = point_masks
+    
+    if point_masks != {}:
+        n_fg_pixels = sum([index.size(1) for _, index in point_masks.items()])
+        # random foreground <-> background pixels
+        all_bg_index = torch.flip(torch.stack(torch.where(data['classmask'] == 0)), [0])
+        fg_index = []
+        n_fg_pixels = sum([index.size(1) for _, index in point_masks.items()])
+        for _, index in point_masks.items():
+            rand_index = torch.randperm(index.size(1))[:index.size(1) * n_nonpair_bg // n_fg_pixels]
+            fg_index.append(index[:, rand_index])
+        fg_index = torch.cat(fg_index, dim=1)
+        if fg_index.size(1) < n_nonpair_bg:
+            fg_index = torch.cat([fg_index, fg_index[:, fg_index.size(1) - n_nonpair_bg:]], dim=1)
+        rand_index = torch.randperm(all_bg_index.size(1))[:fg_index.size(1)]
+        bg_index = all_bg_index[:, rand_index]
+        point_pairs['nonpair_bg'] = torch.cat((fg_index, bg_index), dim=0)
+        point_pairs['bg_mask'] = data['classmask'] == 0
+        # random two foreground pixels on every single object
+        single_index = []
+        for _, index in point_masks.items():
+            n_index = index.size(1) * n_nonpair_singleobj // n_fg_pixels
+            rand_index1 = torch.randperm(index.size(1))[:n_index + 10] # leave some extra to remove repeating pairs
+            rand_index2 = torch.randperm(index.size(1))[:n_index + 10]
+            non_repeat_index = rand_index1 != rand_index2
+            single_index.append(torch.cat([index[:, rand_index1[non_repeat_index][:n_index]], index[:, rand_index2[non_repeat_index][:n_index]]], dim=0))
+        single_index = torch.cat(single_index, dim=1)
+        if single_index.size(1) < n_nonpair_singleobj:
+            single_index = torch.cat([single_index, single_index[:, single_index.size(1) - n_nonpair_singleobj:]], dim=1)
+        point_pairs['nonpair_singleobj'] = single_index
+    else:
+        for name in ['nonpair_bg', 'nonpair_singleobj']:
+            point_pairs[name] = torch.tensor([])
+        point_pairs['bg_mask'] = torch.ones(data['classmask'].size(), dtype=torch.bool)
+    return point_pairs
