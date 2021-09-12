@@ -24,11 +24,11 @@ class cfg():
 from tqdm import tqdm 
 import torch
 from torchvision.models.segmentation import deeplabv3_resnet50
-from dataset import make_data_loader, sample_from_mask, sample_non_matches
+from dataset import make_data_loader, sample_from_mask, sample_non_matches, sample_from_augmented_pair
 from augmentations.geometrically_invertible_aug import GeometricallyInvertibleAugmentation as Augmentor
 from loss import get_loss
 
-import torch.multiprocessing as mp
+from torch.utils.tensorboard import SummaryWriter
 
 ##TEMP#############
 from util.unsorted_utils import get_batch_masks, get_int32_mask_given_indices, get_matches_from_int_masks
@@ -37,24 +37,6 @@ import matplotlib.pyplot as plt
 import cv2
 ###################
 
-def sample_from_pair(images, augmentors):
-    '''
-    images are of shape NxCxHxW
-    augmentors is a list of N invertible functions used to augment.
-    '''
-    sh = images.shape
-    masks = torch.zeros((sh[0], sh[2], sh[3]))
-    for i in range(2):
-        inv = augmentors[i].geometric_inverse(images[i])
-        collapsed = inv.sum(dim=0).squeeze()
-        masks[i, collapsed!=0] = 1
-    mask = torch.prod(masks, 0)
-    samples = sample_from_mask(mask, 5000)
-    
-    if len(samples) == 0: return mask, samples, samples
-    
-    non_matches = sample_non_matches(samples, sigma=50, limits=(480, 640))
-    return mask, samples, non_matches
 
 
 if __name__ == '__main__':
@@ -63,6 +45,8 @@ if __name__ == '__main__':
     dataloader = make_data_loader(split='train', args=cfg())
     backbone = deeplabv3_resnet50(num_classes=3).to(device)
     optimizer = torch.optim.Adam(backbone.parameters(), lr=0.0001)
+
+    summary = SummaryWriter()
 
     loss_accumulated = []
     IMAGE_SHAPE = (480, 640)
@@ -73,14 +57,16 @@ if __name__ == '__main__':
 
             images = images.to(device)
             descriptors = backbone(images)['out']
+            print(f'min {descriptors.min()}, max {descriptors.max()}, mean {descriptors.mean()}')
             
 
             inv_desc0 = batch[0]['augmentor'].geometric_inverse(descriptors[0])
             inv_desc1 = batch[1]['augmentor'].geometric_inverse(descriptors[1])
             inv_descriptors = torch.stack((inv_desc0, inv_desc1))
 
-            m, s, non = sample_from_pair(images, [batch[i]['augmentor'] for i in range(2)])
+            m, s, non = sample_from_augmented_pair(images, [batch[i]['augmentor'] for i in range(2)])
             if len(s) == 0 or len(non) == 0: 
+                # TODO: catch in dataloader. 
                 print('HHHHHH got non overlapping masks')
                 continue
             else:
@@ -88,8 +74,11 @@ if __name__ == '__main__':
                 non_matching_indices = [non, non]
                 loss = get_loss(inv_descriptors, matched_indices, non_matching_indices, w_match=0.5)
                 loss_accumulated.append(torch.tensor(0.0).to(device))
-                for l in loss.values(): loss_accumulated[-1] += l
-                print(loss_accumulated[-1])
+                for k, v in loss.items(): 
+                    summary.add_scalar(k, v)
+                    loss_accumulated[-1] += v
+                
+                # print(loss_accumulated[-1])
     
             if i % 1 == 0:
                 (sum(loss_accumulated) / len(loss_accumulated)).backward()
@@ -107,7 +96,7 @@ if __name__ == '__main__':
                 gs = fig.add_gridspec(1, 2)
                 axs = gs.subplots()
                 im = images[0].clone().detach().cpu().permute(1,2,0).float()
-                d = descriptors[0].clone().detach().cpu().permute(1,2,0)[1:].float().numpy()
+                d = ((descriptors[0]+1)/2).clone().detach().cpu().permute(1,2,0)[1:].float().numpy()
                 axs[0].imshow(im)
                 axs[1].imshow(d)
                 plt.savefig(f'./results/{epoch}_{i}')

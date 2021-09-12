@@ -51,3 +51,4 @@ def get_matches_from_int_masks(m1, m2):
     if matching_indices.shape[0] == 0: return torch.tensor([]), torch.tensor([])
     v1_indices, v2_indices = [matching_indices[:, i].flatten() for i in range(2)]
     return [i1[v1_indices], i2[v2_indices]]
+
