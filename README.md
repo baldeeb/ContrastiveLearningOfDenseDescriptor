@@ -5,6 +5,7 @@
 # Demanding Tasks: 
 - [ ] **Advance/experiment-with loss**
     - [ ] IMPORTANT: fix divergence loss.
+    - [ ] What is the effect of using NCE loss instead?
 
 - [ ] **Figure out the effect of batch size** 
     - [ ] integrate the ability to increase batch size if needed

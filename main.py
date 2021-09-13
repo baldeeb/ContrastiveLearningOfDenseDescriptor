@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
             images = images.to(device)
             descriptors = backbone(images)['out']
-            print(f'min {descriptors.min()}, max {descriptors.max()}, mean {descriptors.mean()}')
+            # print(f'min {descriptors.min()}, max {descriptors.max()}, mean {descriptors.mean()}')
             
 
             inv_desc0 = batch[0]['augmentor'].geometric_inverse(descriptors[0])
@@ -67,15 +67,18 @@ if __name__ == '__main__':
             m, s, non = sample_from_augmented_pair(images, [batch[i]['augmentor'] for i in range(2)])
             if len(s) == 0 or len(non) == 0: 
                 # TODO: catch in dataloader. 
-                print('HHHHHH got non overlapping masks')
+                # print('HHHHHH got non overlapping masks')
                 continue
             else:
                 matched_indices = [s, s]
                 non_matching_indices = [non, non]
-                loss = get_loss(inv_descriptors, matched_indices, non_matching_indices, w_match=0.5)
+                loss = get_loss(inv_descriptors, matched_indices, non_matching_indices)
                 loss_accumulated.append(torch.tensor(0.0).to(device))
                 for k, v in loss.items(): 
                     summary.add_scalar(k, v)
+                    if i % 20 == 0:
+                        summary.add_image('descriptor', ((descriptors[0]+1)/2).clone().detach())
+                        summary.add_image('image', images[0].clone().detach())
                     loss_accumulated[-1] += v
                 
                 # print(loss_accumulated[-1])
@@ -89,14 +92,14 @@ if __name__ == '__main__':
 
 
 
-            if i % 20 == 0:
+            if False:  #i % 20 == 0:
                 #################### Temp VISUALIZE ####################
                 ########################################################
                 fig = plt.figure()
                 gs = fig.add_gridspec(1, 2)
                 axs = gs.subplots()
                 im = images[0].clone().detach().cpu().permute(1,2,0).float()
-                d = ((descriptors[0]+1)/2).clone().detach().cpu().permute(1,2,0)[1:].float().numpy()
+                d = ((descriptors[0]+1)/2).clone().detach().cpu().permute(1,2,0).float().numpy()
                 axs[0].imshow(im)
                 axs[1].imshow(d)
                 plt.savefig(f'./results/{epoch}_{i}')

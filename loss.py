@@ -17,7 +17,7 @@ def get_match_loss(descriptors, matches):
 def get_nonmatch_loss(d, nonmatch_pair, M_d=0.5, M_p=100, L2=True):
     p0, p1 = nonmatch_pair[0], nonmatch_pair[1]
     delta = (d[:, p0[0], p0[1]] - d[:, p1[0], p1[1]]).norm(2, dim=0)
-    loss = torch.clamp(M_d - delta, min=0)
+    loss = torch.clamp(M_d - delta, min=0)  #.pow(2)
     N = len(torch.nonzero(loss, as_tuple=False)) 
     if N !=0:
         loss = loss.sum() / N  # divided by hard negative samples
@@ -60,8 +60,8 @@ def encourage_unit_gaussian_distribution(d):
     :param: d has shape NxCxHxW
     """
     mean = d.mean(dim=(2,3), keepdim=True)
-    sigma = (d - mean).norm(dim=1)
-    return torch.clamp((0.5 - sigma).mean(), min=0)
+    sigma_esc = (d - mean).norm(dim=1)
+    return torch.clamp((0.5 - sigma_esc).mean(), min=0)
 
 def get_loss(descriptors, matching_pairs, non_match_pair, w_match=1, w_bg=1, w_single=1):
     """
@@ -83,7 +83,6 @@ def get_loss(descriptors, matching_pairs, non_match_pair, w_match=1, w_bg=1, w_s
         for n in non_matches:
             loss['non_match'] += get_nonmatch_loss(descriptor, [matches, n], single_obj_threshold, 50) * w_single
     
-    
     # loss['divergence'] = encourage_unit_gaussian_distribution(torch.stack(descriptors))       
     
     # return { 'match': match_loss, 
@@ -97,16 +96,16 @@ def neg_log_likelihood_loss(descriptors, pos_samples, neg_samples_list):
     '''
     an attempt at an NCE like loss
     '''
+    assert(descriptors.shape[0] == 2)
+    pos, neg = [], []
+    for i in range(2):
+        pos.push_back(descriptors[i, :, pos_samples[i][0], pos_samples[i][1]]) 
+        neg.push_back([descriptors[i, :, n[0], n[1]] for n in neg_samples_list])
 
-    matching = [descriptors[i, :, pos_samples[i][0], pos_samples[i][1]] for i in range(2)]
-    for neg_samples in neg_samples_list:
-        non_matching = [descriptors[i, :, ]]
+    print(pos[0].shape, neg[0][0].shape)
+
+    # TODO:
+    # - get dot between positives
+    # - 
+                
     
-    non_matching_list = []
-    for neg_samples in neg_samples_list:
-        non_matching_list.append(descriptors[:, :, neg_samples[0], neg_samples[1]])
-    non_matching = torch.stack(non_matching_list)
-
-    
-
-    pass
