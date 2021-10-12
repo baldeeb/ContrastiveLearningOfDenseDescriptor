@@ -9,10 +9,9 @@ import numpy as np
 from copy import copy
 from scipy.spatial.transform import Rotation as R
 from augmentations.geometrically_invertible_aug import GeometricallyInvertibleAugmentation as Augmentor
-
+from augmentations.util import union_of_augmented_images_in_original
 from util.unsorted_utils import get_matches_from_int_masks
-
-
+from util.sampling_utils import sample_from_mask, sample_non_matches
 
 def collate_fn(batch):
     images = tuple([data['image'] for data in batch])
@@ -21,18 +20,17 @@ def collate_fn(batch):
 
 def augment_unreal_data(given_data):
     data = copy(given_data)  #<! TODO: is this necessary 
-    aug = Augmentor(data['image'].shape[1:] , s=0.5)
+    aug = Augmentor(data['image'].shape[1:])
     data['augmentor'] = aug
     keys_to_augment = ['image']
     keys_to_geometrically_augment = ['depth', 'mask', 'classmask', 'unique_mask']
-
     for key in keys_to_augment:
         data[key] = aug(data[key])
     for key in keys_to_geometrically_augment:
         if len(data[key].shape) == 2: data[key] = data[key].unsqueeze(0)
         data[key] = aug.geometric_only(data[key])
-        
     return data
+
 
 def collate_pair_of_augments(batch):
     num_augs = 2 # TODO: make this a functor init param
@@ -48,7 +46,7 @@ def collate_pair_of_augments(batch):
 
 def make_data_loader(split, args, return_dataset=False):
     if args.dataset == "unreal_parts":
-        dataset = Unreal_parts(args.data_dir, split, args.image_type, args.obj_class, args.n_pair, args.n_nonpair_singleobj, args.n_nonpair_bg)
+        dataset = Unreal_parts(args.data_dir, args.image_type)
     else:
         raise Exception("Unrecognized dataset {}".format(args.dataset))
     
@@ -58,71 +56,30 @@ def make_data_loader(split, args, return_dataset=False):
     return torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, num_workers=args.workers,
                                          pin_memory=True, drop_last=True, collate_fn=collect_func)
 
-def sample_from_mask(mask, k, blur=None):
-    if blur is not None:
-        assert(len(blur) == 2)
-        # TODO: blur mask using a gaussian kernel
-    mask_indices = (mask.squeeze() == 1).nonzero()
-    k = min(k, mask_indices.shape[0])
-    samples = random.sample(mask_indices.numpy().tolist(), k)
-    return torch.tensor(samples).T
 
-def sample_non_matches(sampled_indices, sigma, limits=None):
-    if not isinstance(sigma, list): sigma = [sigma]
-    negatives = []
-    zeros = torch.zeros_like(sampled_indices.float())
-    for s in sigma:
-        offsets = torch.normal(zeros, s).long()
-        N = sampled_indices + offsets
-        if limits is not None:
-            limits = torch.tensor(limits).long()
-            N = N.where(N[:] > 0, torch.tensor(0).long())
-            N[0] = N[0].where(N[0] < limits[0], limits[0]-1)
-            N[1] = N[1].where(N[1] < limits[1], limits[1]-1)
-        negatives.append(N.reshape((2, -1)))
-    if len(negatives) == 1: return negatives[0]
-    else: return negatives
-    
-def union_of_augmented_images_in_original(images, augmentors):
-    '''
-    returns a mask of a common region in the original image where those images overlap
-    '''
-    sh = images.shape
-    masks = torch.zeros((sh[0], sh[2], sh[3]))
-    for i in range(sh[0]):
-        inv = augmentors[i].geometric_inverse(images[i])
-        collapsed = inv.sum(dim=0).squeeze()
-        masks[i, collapsed!=0] = 1
-    return torch.prod(masks, 0)
-
-def sample_from_augmented_pair(images, augmentors, num_samples=2000):
+def sample_from_augmented_pair(images, augmentors, num_samples=2000, sigmas=[10, 25, 50]):
     '''
     images are of shape NxCxHxW
     augmentors is a list of N invertible functions used to augment.
     '''
-    limits = tuple(images.shape[2:4])
-    mask = union_of_augmented_images_in_original(images, augmentors)
+    image_dim = tuple(images.shape[2:4])
+    mask = union_of_augmented_images_in_original(augmentors, image_dim)
     samples = sample_from_mask(mask, num_samples)
-    
-    if len(samples) == 0: return mask, samples, samples
-    
-    non_matches = sample_non_matches(samples, sigma=[10, 25, 50], limits=limits)
-    return mask, samples, non_matches
+    if len(samples) == 0: 
+        return samples, samples
+    else:
+        non_matches = sample_non_matches(samples, sigma=sigmas, limits=torch.tensor(image_dim))
+        return samples, non_matches
+
 
 class Unreal_parts(torch.utils.data.Dataset):
-    def __init__(self, data_dir, split='train', input_mode='RGBD', obj_class='mug', n_pair=1000, n_nonpair_singleobj=1000, n_nonpair_bg=1000):
+    def __init__(self, data_dir, input_mode='RGBD', randomly_index=True):
         # read all rgb file list
-        self.root = data_dir
-        self.split = split        
-
+        self.root = data_dir 
         self.__compile_list_of_scenes()
         self.__load_camera_settings()
-
         self.input_mode = input_mode
-        self.n_pair = n_pair
-        self.n_nonpair_singleobj = n_nonpair_singleobj
-        self.n_nonpair_bg = n_nonpair_bg
-
+        self.randomly_index = randomly_index
 
     def __load_camera_settings(self):
         data_path = os.path.abspath(os.path.join(self.root, 'Room_Capturer/_camera_settings.json'))
@@ -152,8 +109,12 @@ class Unreal_parts(torch.utils.data.Dataset):
         return len(self.rgb_filelist['all'])
     
     def __getitem__(self, index):
-        sampled_scene = random.sample(self.scene_list, 1)[0]
-        sampled_file = random.sample(self.rgb_filelist[sampled_scene], 1)[0]
+        if self.randomly_index :
+            sampled_scene = random.sample(self.scene_list, 1)[0]
+            sampled_file = random.sample(self.rgb_filelist[sampled_scene], 1)[0]
+        else :
+            sampled_file = self.rgb_filelist['all'][index]
+        
         data  = self.get_data_as_dictionary(sampled_file)
         if self.input_mode == 'RGB':
             image = data['rgb'].permute(2, 0, 1)
@@ -164,7 +125,6 @@ class Unreal_parts(torch.utils.data.Dataset):
             image = torch.cat((data['rgb'], surface_normal), dim=2).permute(2, 0, 1)
         data['image'] = image
         return data
-
 
     def get_data_as_dictionary(self, rgbfile):
         depthfile = rgbfile.replace('.png', '.depth.mm.16.png')
@@ -202,3 +162,21 @@ class Unreal_parts(torch.utils.data.Dataset):
         return data
 
 
+    def get_projected_indices(self, data):
+        
+        w, h = self.width, self.height
+        
+        # Create matrix of homogeneous pixel coordinates
+        ui = torch.arange(0, w).unsqueeze(0).repeat(h, 1)
+        vi = torch.arange(0, h).unsqueeze(1).repeat(1, w)
+        ones = torch.ones((h, w))
+        uv = torch.stack([ui, vi, ones], dim=0).type(torch.float)
+
+
+        
+        # Project to camera 3D frame
+        d = data['depth'].unsqueeze(0)
+        scaled_coords = uv * d.repeat(3, 1, 1)
+        xyz = self.K_inv @ scaled_coords.view(3, -1)
+        
+        return xyz

@@ -28,6 +28,7 @@
     - [ ] remove duplicate and unnecessary data.
     - [ ] facilitate the derivation of specific masks
  - [ ] Allow batches and assume consecutive images are augmented pairs.
+ - [ ] Revise Gaussian blur kernel in the augmentation
 
 
 
