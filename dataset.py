@@ -57,12 +57,11 @@ def make_data_loader(split, args, return_dataset=False):
                                          pin_memory=True, drop_last=True, collate_fn=collect_func)
 
 
-def sample_from_augmented_pair(images, augmentors, num_samples=2000, sigmas=[10, 25, 50]):
+def sample_from_augmented_pair(image_dim, augmentors, num_samples=2000, sigmas=[10, 25, 50]):
     '''
     images are of shape NxCxHxW
     augmentors is a list of N invertible functions used to augment.
     '''
-    image_dim = tuple(images.shape[2:4])
     mask = union_of_augmented_images_in_original(augmentors, image_dim)
     samples = sample_from_mask(mask, num_samples)
     if len(samples) == 0: 

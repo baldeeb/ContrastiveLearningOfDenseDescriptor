@@ -13,6 +13,9 @@ import torch
 #     return torch.prod(masks, 0)
 
 
+
+unreal_data_mean, unreal_data_std = [0.5183, 0.5747, 0.7210], [0.3218, 0.3045, 0.2688]  # Unreal Progress Mugs
+
 def union_of_augmented_images_in_original(augmentors, image_dim):
     '''
     returns a mask of a common region in the original image where those images overlap
@@ -25,3 +28,13 @@ def union_of_augmented_images_in_original(augmentors, image_dim):
         mask = mask * mask_in_original_image.squeeze()
     return mask
 
+'''
+Expects x shape: BxCxHxW
+'''
+def image_de_normalize(
+    x, data_mean=torch.tensor(unreal_data_mean), 
+    data_std=torch.tensor(unreal_data_std), device=torch.device('cuda:0')
+    ):
+    m = data_mean.reshape(1, -1, 1, 1).to(device)
+    s = data_std.reshape(1, -1, 1, 1).to(device)
+    return (x / s) + m

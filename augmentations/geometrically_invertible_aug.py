@@ -10,6 +10,9 @@ class GeometricallyInvertibleAugmentation():
     def __init__(self, image_size, s=1.0):
         assert(len(image_size) == 2)
         
+        self.data_mean = torch.tensor(data_mean)
+        self.data_std = torch.tensor(data_std)
+
         #############################################################
         # TODO: revisit
         gaussian_kernel_size = [i // 20 * 2 + 1 for i in image_size] 
@@ -28,7 +31,7 @@ class GeometricallyInvertibleAugmentation():
             RandomApply(
                 [GaussianBlur(kernel_size=gaussian_kernel_size, sigma=(0.1, 2.0))], 
                 p=0.5),
-            Normalize(mean=data_mean, std=data_std)
+            Normalize(mean=self.data_mean, std=self.data_std)
         ])
 
         self.geometric_inverse_transform = Compose([
@@ -40,25 +43,24 @@ class GeometricallyInvertibleAugmentation():
             random_resize_crop
         ])
 
+    def __to_tensor(self, x):
+        if not torch.is_tensor(x): x = ToTensor()(x)
+        return x 
+
     def __call__(self, x):
-        if not torch.is_tensor(x):
-            x = ToTensor()(x) 
+        x = self.__to_tensor(x)
         # return self.transform(x)
         x = self.composed_transform(x)
         return x
 
     def geometric_inverse(self, x):
-        if not torch.is_tensor(x):
-            x = ToTensor()(x)
+        x = self.__to_tensor(x)
         return self.geometric_inverse_transform(x)
 
     def geometric_only(self, x):
-        if not torch.is_tensor(x):
-            x = ToTensor()(x)
+        x = self.__to_tensor(x)
         return self.geometric_transform(x)
 
-    def de_normalize(self, x):
-        return (x / data_std) + data_mean
     # def __call__(self, x):
     #     x1 = self.transform(x)
     #     x2 = self.transform(x)

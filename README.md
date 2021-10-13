@@ -33,3 +33,8 @@
 
 
 
+# How to run this!
+
+Simply run python main.py to train
+
+to use tensorboard run: tensorboard --logdir=runs

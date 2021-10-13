@@ -43,7 +43,6 @@ def encourage_unit_gaussian_distribution(d):
     sigma_esc = (d - mean).norm(dim=1)
     return torch.clamp((0.5 - sigma_esc).mean(), min=0)
 
-from torchvision.transforms import Resize
 def get_loss(descriptors, positive_samples, negative_samples_list, w_match=1, w_non_matches=1):
     """
     Compares 2 descriptors expects a batch of 2
@@ -53,13 +52,6 @@ def get_loss(descriptors, positive_samples, negative_samples_list, w_match=1, w_
     assert(positive_samples is not None)
     assert(negative_samples_list is not None)
     loss = {}
-
-    if False:
-        b, c, h, w = tuple(descriptor.shape)
-        resize = Resize((b, c, int(round(h/2)), int(round(w/2))))
-        descriptors = resize(descriptors)
-        positive_samples = int(round(positive_samples/2))
-        negative_samples_list = int(round(negative_samples_list/2))
 
     descriptors = [d.sigmoid() for d in descriptors]
     
