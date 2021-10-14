@@ -1,5 +1,6 @@
 import random
 import torch
+import numpy as np
 
 def sample_from_mask(mask, k, blur=None):
     if blur is not None:
@@ -10,14 +11,18 @@ def sample_from_mask(mask, k, blur=None):
     samples = random.sample(mask_indices.numpy().tolist(), k)
     return torch.tensor(samples).T
 
-def sample_non_matches(sampled_indices, sigma, limits=None):
+def sample_non_matches(sampled_indices, radius_mean, radius_sigma, limits=None):
     assert(torch.is_tensor(limits) or limits is None)
-    if not isinstance(sigma, list): sigma = [sigma]
+    if not isinstance(radius_mean, list): radius_mean = [radius_mean]
+    if not isinstance(radius_sigma, list): radius_sigma = [radius_sigma]
     negatives = []
-    zeros = torch.zeros_like(sampled_indices.float())
-    for s in sigma:
-        offsets = torch.normal(zeros, s).long()
-        N = sampled_indices + offsets
+    num_samples = sampled_indices.shape[1]
+    for m, s in zip(radius_mean, radius_sigma):
+        angle_sampler = torch.distributions.uniform.Uniform(-np.pi, np.pi)
+        thetas = angle_sampler.rsample([num_samples])
+        radii = torch.normal(m, s, size=[num_samples])
+        offsets = torch.stack((radii * torch.cos(thetas), radii * torch.sin(thetas)), dim=1).long()
+        N = sampled_indices + offsets.T
         if limits is not None:
             limits = limits.long()
             N = N.where(N[:] > 0, torch.tensor(0).long())

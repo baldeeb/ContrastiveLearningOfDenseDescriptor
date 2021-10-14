@@ -14,7 +14,11 @@ def L2_distances(source, samples):
 
 
 def get_match_loss(descriptors, matches):
-    sum_of_squared_distances = L2_distances(descriptors, matches).pow(2).sum()
+    # sum_of_squared_distances = L2_distances(descriptors, matches).pow(2).sum()
+    # TODO: are couple of lines below much different than using L2?
+    matched_descriptors = [descriptors[i][:, matches[i][0], matches[i][1]] for i in range(2)]
+    sum_of_squared_distances = (matched_descriptors[0] - matched_descriptors[1]).pow(2).sum()
+ 
     num_samples = len(matches[0])
     return sum_of_squared_distances / num_samples
 

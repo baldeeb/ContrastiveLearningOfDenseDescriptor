@@ -119,24 +119,19 @@ if __name__ == '__main__':
             inv_desc1 = batch[1]['augmentor'].geometric_inverse(descriptors[1])
             inv_descriptors = torch.stack((inv_desc0, inv_desc1))
 
-            positive_samples, negative_samples = sample_from_augmented_pair(IMAGE_SHAPE, [batch[sample_index]['augmentor'] for sample_index in range(2)])
+            #####################################
+            ## Testing
+            mask = dataloader.dataset[batch[0]['index']]['classmask']
+            mask[mask != 0] = 1
+            augmentors = [batch[i]['augmentor'] for i in range(2)]
+            positive_samples, negative_samples = sample_from_augmented_pair(IMAGE_SHAPE, augmentors, ROI_mask=mask)
             
-            if len(positive_samples) == 0 or len(negative_samples) == 0: continue  # TODO: catch in dataloader. 
+            #####################################
 
-            # #################### TESTING #####################
-            # half_image_dim = tuple([int(round(i/2)) for i in IMAGE_SHAPE])
-            # resize = Resize(half_image_dim)
-            # resized_descriptors = resize(inv_descriptors)
-            # positive_samples = (positive_samples/2).round().long()
-            # positive_samples[0] = torch.clamp(positive_samples[0], min=0, max=half_image_dim[0]-1)
-            # positive_samples[1] = torch.clamp(positive_samples[1], min=0, max=half_image_dim[1]-1)
-
-            # for i in range(len(negative_samples)):
-            #     negative_samples[i] = (negative_samples[i]/2).round().long()
-            #     negative_samples[i][0] = torch.clamp(negative_samples[i][0], min=0, max=half_image_dim[0]-1)
-            #     negative_samples[i][1] = torch.clamp(negative_samples[i][1], min=0, max=half_image_dim[1]-1)
-            ##################################################
+            # augmentors = [batch[i]['augmentor'] for i in range(2)]
+            # positive_samples, negative_samples = sample_from_augmented_pair(IMAGE_SHAPE, augmentors)
             
+            if len(positive_samples) == 0 or len(negative_samples) == 0: continue  # TODO: catch in dataloader.             
             
             loss = get_loss(inv_descriptors, positive_samples, negative_samples)
             loss_accumulated.append(torch.tensor(0.0).to(device))
