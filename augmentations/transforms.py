@@ -63,9 +63,10 @@ class RandomResizedCrop(OriginalRandomResizedCrop):
     def forward(self, img):
         if self.apply_inverse:
             return self.inverse(img)
+
         return F.resized_crop(img, self.i, self.j, self.h, self.w, self.size, self.interpolation)
 
-    def __get_discarded_side_lengths(self, ):
+    def __get_discarded_side_lengths(self):
         top = int(self.i)
         bottom = int(self.size[0] - (self.h + self.i))
         left = int(self.j)
@@ -74,8 +75,12 @@ class RandomResizedCrop(OriginalRandomResizedCrop):
 
     def inverse(self, img):
         padding = self.__get_discarded_side_lengths()
+
+        print(f"\nimage size {img.shape}, target h: {self.h} w: {self.w}")
         result = F.resize(img, (self.h, self.w))
+        print(f"resized size {result.shape}")
         result = F.pad(result, padding)
+        print(f"padded size {result.shape}")
         return result
 
     def invert(self):
@@ -85,6 +90,17 @@ class RandomResizedCrop(OriginalRandomResizedCrop):
         inv = deepcopy(self)
         inv.invert()
         return inv
+    
+    def resize(self, size):
+        '''scale self.i and self.j by the ratio of the size'''
+        scalex, scaley = self.size[0]/size[0], self.size[1]/size[1]
+        self.i = int(self.i / scalex)
+        self.j = int(self.j / scaley)
+        self.w = int(self.w / scalex)
+        self.h = int(self.h / scaley)
+        self.size = size
+        
+
 
 class RandomHorizontalFlip(OriginalRandomHorizontalFlip):
     def __init__(self, p=0.5):

@@ -1,6 +1,18 @@
 # ContrastiveLearningOfDenseDescriptor
 
 
+# NEW TASKS: 
+- [ ] review README file
+    - [ ] update it to contain a description of the project proposal as well as current results.
+    - [ ] clean up the todo list
+
+- [ ] Pyramidal Loss: train the network at different hierarchies
+    - [x] update the geometric inverse of augmentations to allow for various sizes
+    - [x] setup training class
+    - [ ] figure out how to sample from different levels
+        - [x] consolidate sampling and loss related functions
+        - [ ] apply sampling and loss on differently sized images
+        - [ ] set up iterative loop to 
 
 # Demanding Tasks: 
 - [ ] **Advance/experiment-with loss**

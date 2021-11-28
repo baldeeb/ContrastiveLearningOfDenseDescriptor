@@ -138,3 +138,6 @@ dmypy.json
 
 # Data folders
 /*results*/
+MNIST
+
+/*logs*/

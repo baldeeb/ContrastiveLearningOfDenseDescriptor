@@ -33,8 +33,8 @@ Expects x shape: BxCxHxW
 '''
 def image_de_normalize(
     x, data_mean=torch.tensor(unreal_data_mean), 
-    data_std=torch.tensor(unreal_data_std), device=torch.device('cuda:0')
-    ):
+    data_std=torch.tensor(unreal_data_std), 
+    device=torch.device('cuda:0') ):
     m = data_mean.reshape(1, -1, 1, 1).to(device)
     s = data_std.reshape(1, -1, 1, 1).to(device)
-    return (x / s) + m
+    return (x * s) + m
