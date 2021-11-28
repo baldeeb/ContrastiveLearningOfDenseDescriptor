@@ -31,3 +31,11 @@ def sample_non_matches(sampled_indices, radius_mean, radius_sigma, limits=None):
         negatives.append(N.reshape((2, -1)))
     if len(negatives) == 1: return negatives[0]
     else: return negatives
+
+
+def get_samples(metas, binary_mask=None):
+    augmentors = [metas[i]['augmentor'] for i in range(2)]
+    positive_samples, negative_samples = sample_from_augmented_pair(
+                                            IMAGE_SHAPE, augmentors, 
+                                            ROI_mask=binary_mask)
+                                            

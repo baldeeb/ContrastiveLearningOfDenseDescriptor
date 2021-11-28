@@ -1,6 +1,8 @@
-# pixelwise contrastive loss
+''' Defines functions for performing pixelwise contrastive loss '''
+
 import torch
 import torch.nn.functional as F
+from util.sampling_utils import get_samples 
 
 def dot_pdt(source, samples):
     assert(len(source) == len(samples) == 2)
@@ -47,7 +49,7 @@ def encourage_unit_gaussian_distribution(d):
     sigma_esc = (d - mean).norm(dim=1)
     return torch.clamp((0.5 - sigma_esc).mean(), min=0)
 
-def get_loss(descriptors, positive_samples, negative_samples_list, w_match=1, w_non_matches=1):
+def contrastive_dense_loss(descriptors, positive_samples, negative_samples_list, w_match=1, w_non_matches=1):
     """
     Compares 2 descriptors expects a batch of 2
     :param: matching_pairs is a list of 2 tensors containing ordered indices of matching pairs of pixels
@@ -70,7 +72,15 @@ def get_loss(descriptors, positive_samples, negative_samples_list, w_match=1, w_
     
     return loss
 
-
+def contrastive_augmentation_loss(descriptors, metas, ROI_mask=None):
+    inv_desc0 = metas[0]['augmentor'].geometric_inverse(descriptors[0])
+    inv_desc1 = metas[1]['augmentor'].geometric_inverse(descriptors[1])
+    inv_descriptors = torch.stack((inv_desc0, inv_desc1))
+    positive_samples, negative_samples = get_samples(metas, ROI_mask)
+    if len(positive_samples) == 0 or len(negative_samples) == 0: 
+        return 0             
+    return contrastive_dense_loss(inv_descriptors, positive_samples, negative_samples)
+    
 
 ## NOTE: Not clear this benefits the goal
 # def neg_log_likelihood_loss(descriptors, pos_samples, neg_samples_list):

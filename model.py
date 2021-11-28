@@ -22,3 +22,8 @@ class DenseModel(nn.Module):
             norm = d.norm(2, dim=1, keepdim=True)
             d = d/norm
         return d
+
+
+class PyramidalModel:
+    exit(1, "not yet implemented")
+    pass
