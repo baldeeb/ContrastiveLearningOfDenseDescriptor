@@ -100,3 +100,64 @@ def contrastive_augmentation_loss(descriptors, metas, ROI_mask=None):
 #     # - 
                 
     
+
+
+
+
+def pyramidal_contrastive_augmentation_loss(descriptors_pyramid, metas):
+    '''
+    This loss uses different scales which could be produced by a pyramidal network 
+    to derive a contrastive loss
+    
+
+    descriptors: list of pairs of dense descriptors. First pair has largest 
+        Each pair is of the same scale.
+        Each pair is derived by augmenting the same image.  
+
+    metas: include the augmentations used on the original image.
+    '''
+
+    # Decide how to sample in original image
+    num_positive_samples=1000,  
+    neg_sample_mean_dist=[100, 150, 175], 
+    neg_sample_sigmas=[10, 30, 50], 
+
+    # TODO: get scale of images relative to each other from descriptors
+    image_scales = [1, 0.5, 0.25]
+
+    loss_dicts = []
+    for descriptor_pair in descriptors_pyramid:
+        scale = get_descriptor_scale(descriptor_pair, metas)
+        neg_means = neg_sample_mean_dist * scale
+        neg_std = neg_sample_sigmas * scale
+        num_samples = num_positive_samples * scale
+
+        shape = descriptor_pair[0].shape[-2:]
+        augmentors = [metas[i]['augmentor'].re_shape(shape) for i in range(2)]
+
+        # Get samples
+        positive_samples, negative_samples = sample_from_augmented_pair(
+                                        IMAGE_SHAPE, augmentors,
+                                        num_samples=num_samples,    
+                                        neg_sample_mean_dist=neg_sample_mean_dist,
+                                        neg_sample_sigmas=neg_sample_sigmas,
+                                        ROI_mask=binary_mask)
+        if len(positive_samples) == 0 or len(negative_samples) == 0: 
+            continue        
+
+        # Invert Geometric augmentations
+        re_adjusted_descriptors = []
+        for aug, d in zip(augmentors, descriptor_pair):
+            re_adjusted_descriptors.append(augmentors.geometric_inverse(d))
+        re_adjusted_descriptors = torch.stack(tuple(re_adjusted_descriptors))
+
+     
+        loss_dicts.append(
+            contrastive_dense_loss(
+                re_adjusted_descriptors, 
+                positive_samples, 
+                negative_samples))
+    
+    # merge loss dicts
+    loss = {k: [ld[k] for ld in loss_dicts] for k in loss_dicts[0]}
+    return loss 

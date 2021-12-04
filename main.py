@@ -67,7 +67,7 @@ if __name__ == '__main__':
             
             ##############################
             # For testing. 
-            # Answering the question: Would masks help?
+            # Answering the question: Would masks (informed sampling) help?
             mask = dataloader.dataset[metas[0]['index']]['classmask']
             mask[mask != 0] = 1
             ################################

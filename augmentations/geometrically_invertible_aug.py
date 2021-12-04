@@ -65,7 +65,7 @@ class GeometricallyInvertibleAugmentation():
         x = self.__to_tensor(x)
         return self.geometric_transform(x)
 
-    def _resize(self, shape):
+    def re_shape(self, shape):
         self.inverse_random_resize_crop.resize(shape)
         self.random_resize_crop.resize(shape)
 

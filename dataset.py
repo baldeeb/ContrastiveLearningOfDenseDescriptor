@@ -57,28 +57,6 @@ def make_data_loader(split, args, return_dataset=False):
                                          pin_memory=True, drop_last=True, collate_fn=collect_func)
 
 
-def sample_from_augmented_pair(
-    image_dim, augmentors, 
-    num_samples=2000,  
-    neg_sample_mean_dist=[100, 150, 175], 
-    neg_sample_sigmas=[10, 30, 50], 
-    ROI_mask=None):
-    '''
-    images are of shape NxCxHxW
-    augmentors is a list of N invertible functions used to augment.
-    ROI_mask: a torch tensor containing 1 where sampling is accepted and zeros elsewhere
-    '''
-    mask = union_of_augmented_images_in_original(augmentors, image_dim)
-    if ROI_mask is not None: mask *= ROI_mask
-    samples = sample_from_mask(mask, num_samples)
-    if len(samples) == 0: 
-        return samples, samples
-    else:
-        non_matches = sample_non_matches(samples, radius_mean=neg_sample_mean_dist, 
-            radius_sigma=neg_sample_sigmas,limits=torch.tensor(image_dim))
-        return samples, non_matches
-
-
 class Unreal_parts(torch.utils.data.Dataset):
     def __init__(self, data_dir, input_mode='RGBD', randomly_index=True):
         # read all rgb file list
@@ -171,7 +149,6 @@ class Unreal_parts(torch.utils.data.Dataset):
 
 
     def get_projected_indices(self, data):
-        
         w, h = self.width, self.height
         
         # Create matrix of homogeneous pixel coordinates
@@ -179,8 +156,6 @@ class Unreal_parts(torch.utils.data.Dataset):
         vi = torch.arange(0, h).unsqueeze(1).repeat(1, w)
         ones = torch.ones((h, w))
         uv = torch.stack([ui, vi, ones], dim=0).type(torch.float)
-
-
         
         # Project to camera 3D frame
         d = data['depth'].unsqueeze(0)
