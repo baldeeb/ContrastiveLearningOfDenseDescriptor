@@ -16,14 +16,14 @@ import torch
 
 unreal_data_mean, unreal_data_std = [0.5183, 0.5747, 0.7210], [0.3218, 0.3045, 0.2688]  # Unreal Progress Mugs
 
-def union_of_augmented_images_in_original(augmentors, image_dim):
+def union_of_augmented_images_in_original(augmentors):
     '''
     returns a mask of a common region in the original image where those images overlap
     '''
-    assert(isinstance(image_dim, tuple) and len(image_dim) == 2)
-    mask = torch.ones(image_dim)
+    image_size = augmentors[0].image_size
+    mask = torch.ones(image_size)
     for aug in augmentors:
-        ones = torch.ones(tuple([1,*image_dim]))
+        ones = torch.ones(tuple([1,*image_size]))
         mask_in_original_image = aug.geometric_inverse(ones)
         mask = mask * mask_in_original_image.squeeze()
     return mask

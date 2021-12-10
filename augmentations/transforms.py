@@ -6,6 +6,8 @@ at initialization.
 
 from torchvision.transforms import InterpolationMode 
 from torchvision.transforms import RandomHorizontalFlip as OriginalRandomHorizontalFlip
+from torchvision.transforms import RandomVerticalFlip as OriginalRandomVerticalFlip
+
 from torchvision.transforms import RandomResizedCrop as OriginalRandomResizedCrop
 import torchvision.transforms.functional as F
 import torch 
@@ -75,12 +77,8 @@ class RandomResizedCrop(OriginalRandomResizedCrop):
 
     def inverse(self, img):
         padding = self.__get_discarded_side_lengths()
-
-        print(f"\nimage size {img.shape}, target h: {self.h} w: {self.w}")
         result = F.resize(img, (self.h, self.w))
-        print(f"resized size {result.shape}")
         result = F.pad(result, padding)
-        print(f"padded size {result.shape}")
         return result
 
     def invert(self):
@@ -117,6 +115,34 @@ class RandomHorizontalFlip(OriginalRandomHorizontalFlip):
     def forward(self, img):
         if self.flip: 
             return F.hflip(img)
+        else:
+            return img
+
+    def inverse(self, img):
+        return self.forward(img)
+
+    def get_inverse(self):
+        return self
+
+
+
+
+
+class RandomVerticalFlip(OriginalRandomVerticalFlip):
+    def __init__(self, p=0.5):
+        super().__init__(p)
+        self.randomize()
+        
+    @property
+    def is_geometric(self):
+        return True
+    
+    def randomize(self):
+        self.flip = torch.rand(1) < self.p
+
+    def forward(self, img):
+        if self.flip: 
+            return F.vflip(img)
         else:
             return img
 

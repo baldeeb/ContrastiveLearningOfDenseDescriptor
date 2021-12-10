@@ -1,6 +1,7 @@
 ''' Defines functions for performing pixelwise contrastive loss '''
 
 import torch
+from copy import deepcopy
 import torch.nn.functional as F
 from util.sampling_utils import get_samples 
 
@@ -76,9 +77,9 @@ def contrastive_augmentation_loss(descriptors, metas, ROI_mask=None):
     inv_desc0 = metas[0]['augmentor'].geometric_inverse(descriptors[0])
     inv_desc1 = metas[1]['augmentor'].geometric_inverse(descriptors[1])
     inv_descriptors = torch.stack((inv_desc0, inv_desc1))
-    positive_samples, negative_samples = get_samples(metas, ROI_mask)
+    positive_samples, negative_samples = get_samples(metas, binary_mask=ROI_mask)
     if len(positive_samples) == 0 or len(negative_samples) == 0: 
-        return 0             
+        return {}             
     return contrastive_dense_loss(inv_descriptors, positive_samples, negative_samples)
     
 
@@ -102,7 +103,8 @@ def contrastive_augmentation_loss(descriptors, metas, ROI_mask=None):
     
 
 
-
+def get_descriptor_scale(descriptor_pair, metas):
+    dw, dh = tensor
 
 def pyramidal_contrastive_augmentation_loss(descriptors_pyramid, metas):
     '''
@@ -125,19 +127,24 @@ def pyramidal_contrastive_augmentation_loss(descriptors_pyramid, metas):
     # TODO: get scale of images relative to each other from descriptors
     image_scales = [1, 0.5, 0.25]
 
+    original_shape = torch.tensor(metas['images'].shape[-2:])
+
     loss_dicts = []
     for descriptor_pair in descriptors_pyramid:
-        scale = get_descriptor_scale(descriptor_pair, metas)
+
+        descriptor_shape = descriptor_pair[0].shape[-2:]
+        scale = descriptor_shape / original_shape 
+        
         neg_means = neg_sample_mean_dist * scale
         neg_std = neg_sample_sigmas * scale
         num_samples = num_positive_samples * scale
 
-        shape = descriptor_pair[0].shape[-2:]
-        augmentors = [metas[i]['augmentor'].re_shape(shape) for i in range(2)]
+        aug_copies = [deepcopy(metas[i]['augmentor']) for i in range(2)]
+        augmentors = [aug.re_shape(descriptor_shape) for aug in aug_copies]
 
         # Get samples
         positive_samples, negative_samples = sample_from_augmented_pair(
-                                        IMAGE_SHAPE, augmentors,
+                                        augmentors,
                                         num_samples=num_samples,    
                                         neg_sample_mean_dist=neg_sample_mean_dist,
                                         neg_sample_sigmas=neg_sample_sigmas,
@@ -151,7 +158,6 @@ def pyramidal_contrastive_augmentation_loss(descriptors_pyramid, metas):
             re_adjusted_descriptors.append(augmentors.geometric_inverse(d))
         re_adjusted_descriptors = torch.stack(tuple(re_adjusted_descriptors))
 
-     
         loss_dicts.append(
             contrastive_dense_loss(
                 re_adjusted_descriptors, 

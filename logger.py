@@ -1,7 +1,8 @@
 import os
+import torch
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
-
+from util.model_storage import save_model
 
 class Logger():
 
@@ -19,7 +20,7 @@ class Logger():
         self.image_de_normalizer = image_de_normalizer
         self.counter = 0
 
-    def update(self, epoch, model, optimizer, loss_dict, images, descriptor):
+    def update(self, epoch, model, optimizer, loss_dict, images, descriptors):
         self.epoch = epoch
         self.counter += 1
         if self.counter % self.model_save_rate == 0:

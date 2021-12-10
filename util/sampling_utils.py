@@ -36,7 +36,7 @@ def sample_non_matches(sampled_indices, radius_mean, radius_sigma, limits=None):
 
 
 def sample_from_augmented_pair(
-    image_dim, augmentors, 
+    augmentors, 
     num_samples,  
     neg_sample_mean_dist, 
     neg_sample_sigmas, 
@@ -46,27 +46,30 @@ def sample_from_augmented_pair(
     augmentors is a list of N invertible functions used to augment.
     ROI_mask: a torch tensor containing 1 where sampling is accepted and zeros elsewhere
     '''
-    mask = union_of_augmented_images_in_original(augmentors, image_dim)
+    image_size = augmentors[0].image_size
+    mask = union_of_augmented_images_in_original(augmentors)
     if ROI_mask is not None: mask *= ROI_mask
     samples = sample_from_mask(mask, num_samples)
     if len(samples) == 0: 
         return samples, samples
     else:
         non_matches = sample_non_matches(samples, radius_mean=neg_sample_mean_dist, 
-            radius_sigma=neg_sample_sigmas,limits=torch.tensor(image_dim))
+            radius_sigma=neg_sample_sigmas,limits=torch.tensor(image_size))
         return samples, non_matches
 
 
 def get_samples(metas, 
-    num_samples=2000,  
-    neg_sample_mean_dist=[100, 150, 175], 
-    neg_sample_sigmas=[10, 30, 50], 
+    num_samples=1000,  
+    neg_sample_mean_dist=[100, 125, 150, 175], 
+    neg_sample_sigmas=[10, 15, 30, 50], 
     binary_mask=None):
     augmentors = [metas[i]['augmentor'] for i in range(2)]
     positive_samples, negative_samples = sample_from_augmented_pair(
-                                            IMAGE_SHAPE, augmentors,
+                                            augmentors,
                                             num_samples=num_samples,    
                                             neg_sample_mean_dist=neg_sample_mean_dist,
                                             neg_sample_sigmas=neg_sample_sigmas,
                                             ROI_mask=binary_mask)
+
+    return positive_samples, negative_samples
                                             
