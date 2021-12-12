@@ -10,7 +10,7 @@ class Logger():
         self.model_save_rate = model_save_rate
         self.loss_summary_rate = loss_summary_rate
         self.visuals_save_rate = visuals_save_rate
-        self.timestamp_str = datetime.now().now().strftime("%d_%m_%Y__%H_%M_%S")
+        self.timestamp_str = datetime.now().now().strftime("%Y_%m_%d__%H_%M_%S")
         self.checkpoint_dir = f"results/checkpoints_{self.timestamp_str}/"
         if not os.path.isdir(self.checkpoint_dir):
             os.makedirs(self.checkpoint_dir)

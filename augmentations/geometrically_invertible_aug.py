@@ -72,6 +72,7 @@ class GeometricallyInvertibleAugmentation():
     def re_shape(self, shape):
         self.inverse_random_resize_crop.resize(shape)
         self.random_resize_crop.resize(shape)
+        self.image_size = shape
 
     def de_normalize(self, x, device='cpu'):
         return image_de_normalize(x, 

@@ -4,24 +4,25 @@ from logger import Logger
 import torch
 from torchvision.transforms import Resize
 
-from loss import contrastive_augmentation_loss
-from models.dense_model import DenseModel
+from models.pyramidal import PyramidalDenseNet
 from augmentations.util import image_de_normalize
 from dataset import make_data_loader
-	
+import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
 
-# data
-dataset = MNIST('', train=True, download=True, transform=transforms.ToTensor())
-mnist_train, mnist_val = random_split(dataset, [55000, 5000])
-train_loader = DataLoader(mnist_train, batch_size=32)
-val_loader = DataLoader(mnist_val, batch_size=32)
+import yaml
+from addict import Dict
 
+with open('configuration/train.yaml') as f:
+    cfg = Dict(yaml.safe_load(f))
+    
+dataloader = make_data_loader(split='train', args=cfg.dataloader)
 
 # model
-model = PyramidalDenseNet()
+model = PyramidalDenseNet(cfg.model)
 
 # training
-trainer = pl.Trainer(precision=16, limit_train_batches=0.5)
-# trainer = pl.Trainer(gpus=4, num_nodes=8, precision=16, limit_train_batches=0.5)
-trainer.fit(model, train_loader, val_loader)
+trainer = pl.Trainer(accelerator='gpu', gpus=1, precision=16, limit_train_batches=0.5, logger=WandbLogger())
+
+trainer.fit(model, dataloader, dataloader)
 	

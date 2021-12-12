@@ -7,7 +7,8 @@
     - [x] Add resize capability
  - [x] Add sampling tools
  - [x] Setup main training loop
- - [ ] Setup Proper Config system
+ - [X] Setup Proper Config system
+    - Yaml and addict libraries were used.
  - [ ] Clean-up/Update dataloader
  - [ ] Allow different batch sizes _(Currently limited by compute capabilities)_
  - [ ] Will using target object segmentation help?
@@ -15,7 +16,8 @@
     - [x] Implemented depth clustering functionality 
     - [ ] _(in progress)_ Used segmentation maps from data
         - That did not yield much improvement but bugs might have been the issue
-
+ - [ ] consolidate logging into a single WandB logger.
+    - initially tensorboad was used.
  
 ## Demanding Tasks: 
 - [ ] **Advance/experiment-with loss**
