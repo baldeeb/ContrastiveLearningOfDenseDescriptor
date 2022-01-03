@@ -1,17 +1,14 @@
-from tqdm import tqdm 
-from logger import Logger
-
+import yaml
 import torch
+from tqdm import tqdm 
+from addict import Dict
+from logger import Logger
+import pytorch_lightning as pl
+from dataset import make_data_loader
 from torchvision.transforms import Resize
-
 from models.pyramidal import PyramidalDenseNet
 from augmentations.util import image_de_normalize
-from dataset import make_data_loader
-import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
-
-import yaml
-from addict import Dict
 
 with open('configuration/train.yaml') as f:
     cfg = Dict(yaml.safe_load(f))

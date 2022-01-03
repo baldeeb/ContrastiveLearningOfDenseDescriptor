@@ -12,21 +12,22 @@ import wandb
 # TODO: remove
 import matplotlib.pyplot as plt  
 
+
 class PyramidalDenseNet(pl.LightningModule):
 
 	def __init__(self, cfg):
 		super().__init__()
-
 		if not self.__config_valid(cfg):
 			exit(1)
-
 		deconv_kernel = 4
-		backbone = resnet_fpn_backbone(cfg['backbone_name'], pretrained=True)
 
+		# Setup Feature Pyramid Net
+		backbone = resnet_fpn_backbone(cfg['backbone_name'], pretrained=True)
 		for param in backbone.parameters():
 			param.requires_grad = True
-
 		self.fpn = torch.nn.Sequential(*(list(backbone.children()))).to(cfg['device'])
+		
+		# Setup Trans Conv Head
 		transpose_conv = nn.ConvTranspose2d(cfg['feature_dim'], 
 										cfg['feature_dim']//4, 
 										deconv_kernel, 
@@ -34,19 +35,17 @@ class PyramidalDenseNet(pl.LightningModule):
 										padding=deconv_kernel // 2 - 1, 
 										bias=False)
 		transpose_batchnorm = nn.BatchNorm2d(cfg['feature_dim']//4)
-		final_conv = nn.Conv2d(cfg['feature_dim'] // 4, cfg['output_dim'], 3, 1, 1)
-
+		final_conv = nn.ConvTranspose2d(cfg['feature_dim'] // 4, 
+										cfg['output_dim'],
+										deconv_kernel, 
+										stride=2, 
+										padding=deconv_kernel // 2 - 1, 
+										bias=False)
 		self.transpose_head = nn.Sequential(transpose_conv, 
 										transpose_batchnorm, 
 										final_conv).to(cfg['device'])
-
 		for param in self.transpose_head.parameters():
 			param.requires_grad = True
-		
-		# # TODO REMOVE
-		# self.logger__ = Logger(model_save_rate=1000000000) # TODO: specify data mean and std
-		# print(f"storing this run in: {self.logger__.checkpoint_dir}")
-
 
 	def __config_valid(self, cfg):
 		if cfg['input_dim'] != 3:
@@ -77,12 +76,6 @@ class PyramidalDenseNet(pl.LightningModule):
 			avg_v = sum(v)/len(v)
 			loss_dict[k] = avg_v
 			self.log(k, avg_v)
-
-		# TODO: REMOVE
-		# for k, v in loss_dict.items():
-		# 	self.log(k, v)
-		# self.logger__.update(0, None, None, loss_dict, images, z[0])
-		# self.logger__.save_model(model, optimizer, model_dir_end='_final')
 		
 		if batch_idx % 20 == 0:	
 			d = z[0][0].clone().detach()
@@ -97,13 +90,6 @@ class PyramidalDenseNet(pl.LightningModule):
 		loss_l = list(loss_dict.values())
 		loss = sum(loss_l)/len(loss_l)
 		return loss
-
-	# def validation_step(self, val_batch, batch_idx):
-	# 	pass
-	
-	# def training_step_end(self, outs):
-	# 	pass
-
 
 
 

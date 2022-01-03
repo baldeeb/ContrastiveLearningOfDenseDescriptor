@@ -16,8 +16,9 @@
     - [x] Implemented depth clustering functionality 
     - [ ] _(in progress)_ Used segmentation maps from data
         - That did not yield much improvement but bugs might have been the issue
- - [ ] consolidate logging into a single WandB logger.
+ - [ ] Consolidate logging into a single WandB logger.
     - initially tensorboad was used.
+ - [ ] Transition to torch-lightning
  
 ## Demanding Tasks: 
 - [ ] **Advance/experiment-with loss**
