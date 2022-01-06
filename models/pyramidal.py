@@ -7,10 +7,10 @@ from loss.pyramidal_loss import pyramidal_contrastive_augmentation_loss as ploss
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
 # TODO: consolidate into a single logger
-from logger import Logger  
+from logger import Logger
 import wandb
 # TODO: remove
-import matplotlib.pyplot as plt  
+import matplotlib.pyplot as plt
 
 
 class PyramidalDenseNet(pl.LightningModule):
@@ -25,27 +25,38 @@ class PyramidalDenseNet(pl.LightningModule):
 		backbone = resnet_fpn_backbone(cfg['backbone_name'], pretrained=True)
 		for param in backbone.parameters():
 			param.requires_grad = True
-		self.fpn = torch.nn.Sequential(*(list(backbone.children()))).to(cfg['device'])
-		
+		self.fpn = torch.nn.Sequential(
+			*(list(backbone.children()))).to(cfg['device'])
+
 		# Setup Trans Conv Head
-		transpose_conv = nn.ConvTranspose2d(cfg['feature_dim'], 
-										cfg['feature_dim']//4, 
-										deconv_kernel, 
-										stride=2, 
-										padding=deconv_kernel // 2 - 1, 
+		transpose_conv = nn.ConvTranspose2d(cfg['feature_dim'],
+										cfg['feature_dim']//4,
+										deconv_kernel,
+										stride=2,
+										padding=deconv_kernel // 2 - 1,
 										bias=False)
 		transpose_batchnorm = nn.BatchNorm2d(cfg['feature_dim']//4)
-		final_conv = nn.ConvTranspose2d(cfg['feature_dim'] // 4, 
+		final_conv = nn.ConvTranspose2d(cfg['feature_dim'] // 4,
 										cfg['output_dim'],
-										deconv_kernel, 
-										stride=2, 
-										padding=deconv_kernel // 2 - 1, 
+										deconv_kernel,
+										stride=2,
+										padding=deconv_kernel // 2 - 1,
 										bias=False)
-		self.transpose_head = nn.Sequential(transpose_conv, 
-										transpose_batchnorm, 
+		self.transpose_head = nn.Sequential(transpose_conv,
+										transpose_batchnorm,
 										final_conv).to(cfg['device'])
 		for param in self.transpose_head.parameters():
 			param.requires_grad = True
+
+		# # Projection Head
+		# self.projection_head = nn.Sequential(
+		# 	nn.Flatten(),
+		# 	nn.Linear(feature_dim, feature_dim),
+		# 	nn.LayerNorm(feature_dim),
+		# 	nn.Linear(feature_dim, feature_dim)
+		# )
+		# for param in self.projection_head.parameters():
+		# 	param.requires_grad = True
 
 	def __config_valid(self, cfg):
 		if cfg['input_dim'] != 3:
@@ -66,66 +77,43 @@ class PyramidalDenseNet(pl.LightningModule):
 		return optimizer
 
 	def training_step(self, train_batch, batch_idx):
-		images, metas = train_batch
-		z = self.__full_forward(images)
+		self.batch_idx = batch_idx
+		self.ts_images, self.ts_meta = train_batch
+		self.ts_results = self.__full_forward(self.ts_images)
 
-		# self.save_visuals(images, z[0], metas[0]['augmentor'].de_normalize)
-
-		loss_dict = ploss(z, metas[0])
+		loss_dict = ploss(self.ts_results, self.ts_meta[0])
 		for k, v in loss_dict.items():
 			avg_v = sum(v)/len(v)
 			loss_dict[k] = avg_v
 			self.log(k, avg_v)
-		
-		if batch_idx % 20 == 0:	
-			d = z[0][0].clone().detach()
-			d = torch.clamp(d.sigmoid(), min=0, max=1)
-			plt.imshow(d.permute(1,2,0).cpu().float().numpy())
-			plt.savefig(f"temp/images/{self.current_epoch}_{batch_idx}.png")
-			# im = plt.imshow(d.permute(1,2,0).cpu().float().numpy())
-			# wandb_im = wandb.Image(im, caption="Descriptor")
-			# self.log('descriptor', wandb_im)
-			# self.log({'descriptor': [wandb.Image(d, caption="Descriptor")]})
 
 		loss_l = list(loss_dict.values())
 		loss = sum(loss_l)/len(loss_l)
 		return loss
 
 
+class WandbImageCallback(pl.Callback):
+	"""Logs the input images and output predictions of a module.
 
-# class WandbImagePredCallback(pl.Callback):
-#     """Logs the input images and output predictions of a module.
-    
-#     Predictions and labels are logged as class indices."""
-    
-#     def __init__(self, val_samples, num_samples=32):
-#         super().__init__()
-#         self.val_imgs, self.val_labels = val_samples
-#         self.val_imgs = self.val_imgs[:num_samples]
-#         self.val_labels = self.val_labels[:num_samples]
-          
-#     def training_step_end(self, trainer, pl_module):
-#         val_imgs = self.val_imgs.to(device=pl_module.device)
+	Predictions and labels are logged as class indices."""
 
-#         logits = pl_module(val_imgs)
-#         preds = torch.argmax(logits, 1)
+	def __init__(self, rate=20):
+		super().__init__()
+		self.rate = rate 
 
-#         trainer.logger.experiment.log({
-#             "val/examples": [
-#                 wandb.Image(x, caption=f"Pred:{pred}, Label:{y}") 
-#                     for x, pred, y in zip(val_imgs, preds, self.val_labels)
-#                 ],
-#             "global_step": trainer.global_step
-#             })
+	def on_batch_end(self, trainer, pl_module):
+		if trainer.global_step % self.rate != 0: return
+		log_dict = {"global_step": trainer.global_step}
+		
+		# log image
+		im = pl_module.ts_meta[0]['image'].clone().detach()
+		log_dict['visuals/image'] =  wandb.Image(im)
+				
+		# log descriptor
+		d = pl_module.ts_results[0].clone().detach()
+		d = torch.clamp(d.sigmoid(), min=0, max=1)
+		log_dict['visuals/descriptor'] =  wandb.Image(d)
 
-# 	# def save_visuals(self, images, descriptors, de_normalizer=None):
-# 	# 	im = images.clone().detach()
-# 	# 	if de_normalizer is None:
-# 	# 		im = de_normalizer(im)
-# 	# 	im = torch.clamp(im[0], min=0, max=1)
-# 	# 	self.log('image', im)
-# 	# 	d = descriptors[0].clone().detach()
-# 	# 	d = torch.clamp(d.sigmoid(), min=0, max=1)
-# 	# 	self.log('descriptor', d)
+		trainer.logger.experiment.log(log_dict)
 
 

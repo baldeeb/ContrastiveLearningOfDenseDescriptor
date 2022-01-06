@@ -45,9 +45,7 @@ def pyramidal_contrastive_augmentation_loss(
                                         neg_sample_sigmas=neg_std)
 
         if len(positive_samples) == 0 or len(negative_samples) == 0: 
-            # continue        
-            break  # TODO: TEMP: REMOVE
-
+            continue        
 
         # Invert Geometric augmentations
         re_adjusted_descriptors = []
@@ -63,8 +61,6 @@ def pyramidal_contrastive_augmentation_loss(
                 negative_samples, 
                 w_non_matches=0.5))
 
-        break  # TODO: TEMP: REMOVE
-    
     # Merge loss dicts
     loss = {k: [ld[k] for ld in loss_dicts] for k in loss_dicts[0]}
     return loss 

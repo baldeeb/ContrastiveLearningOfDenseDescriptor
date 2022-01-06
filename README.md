@@ -1,6 +1,6 @@
 # Motivation
 
-This project started as an attempt to facilitate the learning of dense descriptors as used by [Florence & Manuelli](https://arxiv.org/pdf/1806.08756.pdf) by inducing geometric equivalence through contrastive augmentation learning. My timeline and other focuses has changed this project into an exploration of descriptor learning and the benefits of different architectures on learning and deriving granular details.
+This project started as an attempt to facilitate the learning of dense descriptors as used by [Florence & Manuelli](https://arxiv.org/pdf/1806.08756.pdf) by inducing geometric equivalence through contrastive augmentation learning. My timeline and other focuses have relaxed the objective of this work to becoming an exploration of geometric equivariance for descriptor learning and the benefits of different architectures on learning.
 
 The desire behind exploring dense descriptors stems from work I did with professor Chad Jenkins' lab on Affordance Coordinate Frames (ACF). The desire was to learn representations that can inform complex manipulation tasks and their constraints. An example is describing how one has to transport a full cup without spilling, or how one could pour out of such a cup. Since it is difficult to learn such representations without a prior, we were attempting to use dense descriptors space to learn relevant features.
 

@@ -6,7 +6,7 @@ from logger import Logger
 import pytorch_lightning as pl
 from dataset import make_data_loader
 from torchvision.transforms import Resize
-from models.pyramidal import PyramidalDenseNet
+from models.pyramidal import PyramidalDenseNet, WandbImageCallback
 from augmentations.util import image_de_normalize
 from pytorch_lightning.loggers import WandbLogger
 
@@ -19,7 +19,8 @@ dataloader = make_data_loader(split='train', args=cfg.dataloader)
 model = PyramidalDenseNet(cfg.model)
 
 # training
-trainer = pl.Trainer(accelerator='gpu', gpus=1, precision=16, limit_train_batches=0.5, logger=WandbLogger())
+trainer = pl.Trainer(accelerator='gpu', gpus=1, precision=16, limit_train_batches=0.5, 
+                logger=WandbLogger(), callbacks=[WandbImageCallback()])
 
 trainer.fit(model, dataloader, dataloader)
 	

@@ -40,7 +40,7 @@ for epoch in range(cfg.dataloader.num_epochs):
         
         # ##############################
         # # For testing. 
-        # # Answering the question: Would masks (informed sampling) help?
+        # # Answering the question: How much do masks (informed sampling) help?
         # mask = dataloader.dataset[meta[0]['index']]['classmask']
         # mask[mask != 0] = 1
         # loss = contrastive_augmentation_loss(descriptors, meta, mask)
