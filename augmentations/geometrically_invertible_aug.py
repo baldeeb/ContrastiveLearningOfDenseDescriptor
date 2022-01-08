@@ -13,12 +13,7 @@ class GeometricallyInvertibleAugmentation():
         self.image_size = image_size
         self.data_mean = torch.tensor(img_stats[0])
         self.data_std = torch.tensor(data_std[1])
-
-        #############################################################
-        # TODO: revisit
         gaussian_kernel_size = [i // 20 * 2 + 1 for i in image_size] 
-        #############################################################
-        
         self.random_resize_crop = RandomResizedCrop(image_size, scale=(0.4, 1.0))
         random_horizontal_flip = RandomHorizontalFlip()
         random_vertical_flip = RandomVerticalFlip()
@@ -80,7 +75,4 @@ class GeometricallyInvertibleAugmentation():
             data_std=self.data_std,
             device=device)
 
-    # def __call__(self, x):
-    #     x1 = self.transform(x)
-    #     x2 = self.transform(x)
-    #     return x1, x2 
+

@@ -4,13 +4,10 @@ from torch import nn
 from torchvision import transforms
 import pytorch_lightning as pl
 from loss.pyramidal_loss import pyramidal_contrastive_augmentation_loss as ploss
+from loss.pyramidal_loss import non_contrastive_loss as nloss
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
-# TODO: consolidate into a single logger
-from logger import Logger
 import wandb
-# TODO: remove
-import matplotlib.pyplot as plt
 
 
 class PyramidalDenseNet(pl.LightningModule):
@@ -48,15 +45,17 @@ class PyramidalDenseNet(pl.LightningModule):
 		for param in self.transpose_head.parameters():
 			param.requires_grad = True
 
-		# # Projection Head
-		# self.projection_head = nn.Sequential(
-		# 	nn.Flatten(),
-		# 	nn.Linear(feature_dim, feature_dim),
-		# 	nn.LayerNorm(feature_dim),
-		# 	nn.Linear(feature_dim, feature_dim)
-		# )
-		# for param in self.projection_head.parameters():
-		# 	param.requires_grad = True
+		# Projection Head
+		# This is intended for the lowest dimension desriptor in the pyramid 
+		low_feat_dim = 80
+		self.prediction_head = nn.Sequential(
+			nn.Flatten(),
+			nn.Linear(low_feat_dim, low_feat_dim),
+			nn.LayerNorm(low_feat_dim),
+			nn.Linear(low_feat_dim, low_feat_dim)
+		)
+		for param in self.prediction_head.parameters():
+			param.requires_grad = True
 
 	def __config_valid(self, cfg):
 		if cfg['input_dim'] != 3:
@@ -70,7 +69,7 @@ class PyramidalDenseNet(pl.LightningModule):
 		return [z_hat, *list(z.values())]
 
 	def forward(self, x):
-		return self.__full_forward(images)[0]
+		return self.__full_forward(x)[0]
 
 	def configure_optimizers(self):
 		optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
@@ -81,15 +80,33 @@ class PyramidalDenseNet(pl.LightningModule):
 		self.ts_images, self.ts_meta = train_batch
 		self.ts_results = self.__full_forward(self.ts_images)
 
-		loss_dict = ploss(self.ts_results, self.ts_meta[0])
-		for k, v in loss_dict.items():
-			avg_v = sum(v)/len(v)
-			loss_dict[k] = avg_v
-			self.log(k, avg_v)
+		# Pixel Contrastive Loss
+		if False: # NOTE: This is temporary
+			loss_dict = ploss(self.ts_results, self.ts_meta[0])
+			for k, v in loss_dict.items():
+				avg_v = sum(v)/len(v)
+				loss_dict[k] = avg_v
+				self.log(k, avg_v)
+			loss_l = list(loss_dict.values())
+			loss = sum(loss_l)/len(loss_l)
 
-		loss_l = list(loss_dict.values())
-		loss = sum(loss_l)/len(loss_l)
+		# Non-contrastive loss
+		if False: # NOTE: This is temporary
+			# TODO: before this is done, one needs to de-augment since this is non-iconic data.
+			z1, z2 = self.ts_results[-1][0], self.ts_results[-1][1]
+			z1, z2 = nn.Flatten()(z1), nn.Flatten()(z2)
+			p1, p2 = self.prediction_head(z1), self.prediction_head(z2)
+			loss = (nloss(p1, z1) + nloss(p2, z2)) / 2
+			self.log('non-contrastive', loss)
+
 		return loss
+
+	def configure_optimizers(self):
+		'''
+		TODO: try reduced learning rate and use faster learning rates for the prediction head
+		'''
+		return torch.optim.Adam(self.parameters(), lr=0.001)
+
 
 
 class WandbImageCallback(pl.Callback):
@@ -112,7 +129,7 @@ class WandbImageCallback(pl.Callback):
 		# log descriptor
 		d = pl_module.ts_results[0].clone().detach()
 		d = torch.clamp(d.sigmoid(), min=0, max=1)
-		log_dict['visuals/descriptor'] =  wandb.Image(d)
+		log_dict['visuals/descriptor'] = wandb.Image(d)
 
 		trainer.logger.experiment.log(log_dict)
 

@@ -64,3 +64,12 @@ def pyramidal_contrastive_augmentation_loss(
     # Merge loss dicts
     loss = {k: [ld[k] for ld in loss_dicts] for k in loss_dicts[0]}
     return loss 
+
+
+def non_contrastive_loss(p, z):
+    z = z.detach()
+    
+    p = torch.nn.functional.normalize(p)
+    z = torch.nn.functional.normalize(z)
+
+    return (p - z).norm(p=2, dim=0).mean()

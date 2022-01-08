@@ -64,22 +64,3 @@ def contrastive_dense_loss(descriptors, positive_samples, negative_samples_list,
     # loss['divergence'] = encourage_unit_gaussian_distribution(torch.stack(descriptors))
     
     return loss
-
-
-
-## NOTE: Not clear this benefits the goal
-# def neg_log_likelihood_loss(descriptors, pos_samples, neg_samples_list):
-#     '''
-#     an attempt at an NCE like loss
-#     '''
-#     assert(descriptors.shape[0] == 2)
-#     pos, neg = [], []
-#     for i in range(2):
-#         pos.push_back(descriptors[i, :, pos_samples[i][0], pos_samples[i][1]]) 
-#         neg.push_back([descriptors[i, :, n[0], n[1]] for n in neg_samples_list])
-#     print(pos[0].shape, neg[0][0].shape)
-#     # TODO:
-#     # - get dot between positives
-#     # - 
-                
-    
