@@ -1,6 +1,6 @@
 import torch
-from augmentations.transforms import RandomResizedCrop, RandomHorizontalFlip, RandomVerticalFlip
-from  torchvision.transforms import Compose, RandomApply, ColorJitter, RandomGrayscale, GaussianBlur, Normalize, ToTensor 
+from augmentations.transforms import RandomResizedCrop, RandomHorizontalFlip, RandomVerticalFlip, Random2dAffineTransform
+from  torchvision.transforms import Compose, RandomApply, ColorJitter, RandomGrayscale, GaussianBlur, Normalize, ToTensor
 from augmentations.util import image_de_normalize
 
 # data_mean, data_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]  # ImageNet
@@ -13,10 +13,12 @@ class GeometricallyInvertibleAugmentation():
         self.image_size = image_size
         self.data_mean = torch.tensor(img_stats[0])
         self.data_std = torch.tensor(data_std[1])
-        gaussian_kernel_size = [i // 20 * 2 + 1 for i in image_size] 
+        gaussian_kernel_size = [i // 20 * 2 + 1 for i in self.image_size] 
         self.random_resize_crop = RandomResizedCrop(image_size, scale=(0.4, 1.0))
         random_horizontal_flip = RandomHorizontalFlip()
         random_vertical_flip = RandomVerticalFlip()
+
+        random_2d_affine = Random2dAffineTransform(image_size, 45)
 
         self.Normalize = Normalize(mean=self.data_mean, std=self.data_std)
 
@@ -24,6 +26,7 @@ class GeometricallyInvertibleAugmentation():
             self.random_resize_crop,
             random_horizontal_flip,
             random_vertical_flip,
+            random_2d_affine,
             RandomApply(
                 [ColorJitter(0.8*s,0.8*s,0.8*s,0.2*s)], 
                 p=0.8),
@@ -38,11 +41,13 @@ class GeometricallyInvertibleAugmentation():
         self.geometric_inverse_transform = Compose([
             random_horizontal_flip.get_inverse(),
             random_vertical_flip.get_inverse(),
+            random_2d_affine.get_inverse(),
             self.inverse_random_resize_crop
         ])
         self.geometric_transform = Compose([
             random_horizontal_flip,
             random_vertical_flip,
+            random_2d_affine,
             self.random_resize_crop
         ])
 
@@ -74,5 +79,4 @@ class GeometricallyInvertibleAugmentation():
             data_mean=self.data_mean, 
             data_std=self.data_std,
             device=device)
-
 

@@ -7,7 +7,7 @@ at initialization.
 from torchvision.transforms import InterpolationMode 
 from torchvision.transforms import RandomHorizontalFlip as OriginalRandomHorizontalFlip
 from torchvision.transforms import RandomVerticalFlip as OriginalRandomVerticalFlip
-
+from torchvision.transforms import RandomAffine as OriginalRandomAffine
 from torchvision.transforms import RandomResizedCrop as OriginalRandomResizedCrop
 import torchvision.transforms.functional as F
 import torch 
@@ -151,3 +151,62 @@ class RandomVerticalFlip(OriginalRandomVerticalFlip):
 
     def get_inverse(self):
         return self
+
+
+class Random2dAffineTransform(OriginalRandomAffine):
+    def __init__(
+            self,
+            image_size, 
+            degrees, 
+            translate=None, 
+            scale=None, 
+            shear=None, 
+            interpolation=InterpolationMode.NEAREST, 
+            fill=0,
+            fillcolor=None, 
+            resample=None
+        ):
+        """
+            A Re-implementation of the RandomAffine initialization with minor changes
+
+            input_shape (list): Of the form HxW  
+        """
+        super().__init__(degrees, translate, scale, shear, 
+                        interpolation, fill, fillcolor, resample)
+        self.image_size = image_size
+        self.randomize()
+        self.apply_inverse = False
+
+    def randomize(self):
+        self.params = self.get_params(self.degrees, self.translate, self.scale, self.shear, self.image_size)
+        self.inv_params = self.__get_inverse_params(self.params)
+
+    def invert(self):
+        self.apply_inverse = not self.apply_inverse
+
+    def get_inverse(self):
+        inv = deepcopy(self)
+        inv.invert()
+        return inv
+
+    def __get_inverse_params(self, params):
+        inv_deg = -params[0]
+        inv_trans = [-z for z in params[1]]
+        inv_scale = 1/params[2]
+        inv_shear = [-z for z in params[3]]
+        return inv_deg, inv_trans, inv_scale, inv_shear
+
+    def forward(self, img):
+        """
+            Re-implementation of the original function with a few change
+            
+            img (PIL Image or Tensor): Image to be transformed.
+
+        Returns:
+            PIL Image or Tensor: Affine transformed image.
+        """
+        if len(img.shape) == 4: fill_list = [float(self.fill)] * img.shape[1] 
+        else: fill_list = [float(self.fill)] * img.shape[0]
+
+        curr_params = self.inv_params if self.apply_inverse else self.params
+        return F.affine(img, *curr_params, interpolation=self.interpolation, fill=fill_list)
