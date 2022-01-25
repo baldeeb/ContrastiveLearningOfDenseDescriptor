@@ -64,9 +64,14 @@ class PyramidalDenseNet(pl.LightningModule):
 		return True
 
 	def __full_forward(self, images):
-		z = self.fpn(images)
-		z_hat = self.transpose_head(z['0'])
-		return [z_hat, *list(z.values())]
+		z_fpn = self.fpn(images)
+		z_hat = self.transpose_head(z_fpn['0'])
+		all_z = [z_hat, *list(z_fpn.values())]
+		if True:
+			# return [torch.nn.functional.sigmoid(z) for z in all_z]
+			norms = [z.norm(2, dim=1, keepdim=True) for z in all_z]
+			return [z/n for z, n in zip(all_z, norms)]
+		
 
 	def forward(self, x):
 		return self.__full_forward(x)[0]
@@ -81,7 +86,7 @@ class PyramidalDenseNet(pl.LightningModule):
 		self.ts_results = self.__full_forward(self.ts_images)
 
 		# Pixel Contrastive Loss
-		if False: # NOTE: This is temporary
+		if True: # NOTE: This is temporary
 			loss_dict = ploss(self.ts_results, self.ts_meta[0])
 			for k, v in loss_dict.items():
 				avg_v = sum(v)/len(v)

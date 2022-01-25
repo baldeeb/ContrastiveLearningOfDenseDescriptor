@@ -60,6 +60,10 @@ def pyramidal_contrastive_augmentation_loss(
                 positive_samples, 
                 negative_samples, 
                 w_non_matches=0.5))
+        
+        ################### Only supervise dense output ####################
+        break
+        ####################################################################
 
     # Merge loss dicts
     loss = {k: [ld[k] for ld in loss_dicts] for k in loss_dicts[0]}

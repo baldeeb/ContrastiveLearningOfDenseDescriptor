@@ -18,7 +18,7 @@ class DenseModel(nn.Module):
 
     def forward(self, x):
         d = self.backbone(x)['out']
-        if False:
+        if True:
             norm = d.norm(2, dim=1, keepdim=True)
             d = d/norm
         return d

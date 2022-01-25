@@ -10,18 +10,23 @@ def dot_pdt(source, samples):
     return (pixel_pairs[0] * pixel_pairs[1]).sum(dim=0)
 
 def L2_distances(source, samples):
+    """
+    inputs:
+        source [list]: 2 items each is a CxHxW descriptor
+        samples [list]: 2 items each with 2xN for N samples
+    """
     assert(len(source) == len(samples) == 2)
+    assert(all([x.shape[0] == 2 for x in samples]))
     pixel_pairs = [source[i][:, samples[i][0], samples[i][1]] for i in range(2)]
     return (pixel_pairs[0] - pixel_pairs[1]).norm(2, dim=0)
 
 def get_match_loss(descriptors, matches):
     sum_of_squared_distances = L2_distances(descriptors, matches).pow(2).sum()
-    num_samples = matches.shape[-1]
+    num_samples = matches.shape[-1]  #TODO: FIX!
     return sum_of_squared_distances / num_samples
 
 # Computes the max(0, M - D(I_a,I_b,u_a,u_b))^2 term and
 # normalizes using the number of hard negatives.
-# TODO: go back and justify the hard negative condition.
 def get_nonmatch_loss(d, nonmatch_pair, min_nonmatch_distance=0.5):
     distances = L2_distances([d, d], nonmatch_pair)
     loss = torch.clamp((min_nonmatch_distance - distances), min=0).pow(2)
@@ -52,7 +57,7 @@ def contrastive_dense_loss(descriptors, positive_samples, negative_samples_list,
     assert(negative_samples_list is not None)
     loss = {}
 
-    descriptors = [d.sigmoid() for d in descriptors]
+    # descriptors = [d.sigmoid() for d in descriptors]
     
     loss['match'] = get_match_loss(descriptors, torch.stack([positive_samples, positive_samples])) * w_match
     

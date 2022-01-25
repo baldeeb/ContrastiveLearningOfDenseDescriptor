@@ -11,3 +11,12 @@ def contrastive_augmentation_loss(descriptors, meta, ROI_mask=None):
         return {}             
     return contrastive_dense_loss(inv_descriptors, positive_samples, negative_samples)
     
+
+from augmentations.util import union_of_augmented_images_in_original
+from loss.contrastive_loss import get_match_loss
+
+def overlapping_region_positive_sample_loss(descriptors, meta):
+    augmentors = [meta[i]['augmentor'] for i in range(2)]
+    mask = union_of_augmented_images_in_original(augmentors)
+    indices = (mask.squeeze() == 1).nonzero()
+    return get_match_loss(descriptors, torch.stack([indices.T, indices.T]))

@@ -143,3 +143,6 @@ MNIST
 /*logs*/
 /*wandb*/
 **checkpoint*/
+
+
+.vscode

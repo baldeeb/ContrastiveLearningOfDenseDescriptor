@@ -8,7 +8,7 @@ from models.dense_model import DenseModel
 from torchvision.transforms import Resize
 from util.model_storage import load_dense_model
 from augmentations.util import image_de_normalize
-from loss.augmentation_loss import contrastive_augmentation_loss
+from loss.augmentation_loss import contrastive_augmentation_loss, overlapping_region_positive_sample_loss
 
 
 # Read Config
@@ -21,7 +21,7 @@ dataloader = make_data_loader(split='train', args=cfg.dataloader)
 if cfg.load_model_path:
     model, optimizer = load_dense_model(cfg.load_model_path)
 else:
-    model = DenseModel(3, False, device=cfg.device)
+    model = DenseModel(cfg.model.output_dim, False, device=cfg.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
 # Setup Logger
@@ -47,6 +47,13 @@ for epoch in range(cfg.dataloader.num_epochs):
         # ################################
 
         loss = contrastive_augmentation_loss(descriptors, meta)
+
+        # ###############################
+        # # For Testing
+        # # using all positive samples in loss
+        loss['match'] = overlapping_region_positive_sample_loss(descriptors, meta)
+        # ###############################
+
         loss_accumulated.append(torch.tensor(0.0).to(cfg.device))
         for k, v in loss.items(): loss_accumulated[-1] += v
 

@@ -19,7 +19,11 @@
  - [ ] Consolidate logging into a single WandB logger.
     - initially tensorboad was used.
  - [ ] Transition to torch-lightning
+    - [x] Setup the pyramidal model
+    - [ ] Setup the FCN Dense model
  
+ - [ ] Would using a prediction head help regularize the descriptor space? 
+
 ## Demanding Tasks: 
 - [ ] **Advance/experiment-with loss**
     - [ ] IMPORTANT: fix divergence loss.
