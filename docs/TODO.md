@@ -1,3 +1,7 @@
+# Review:
+ - [ ] [SimSiam](https://arxiv.org/abs/2011.10566)
+ - [ ] [SuperPoint](https://arxiv.org/abs/1712.07629)
+ - [ ] [Understanding Positive Sample Learning](https://arxiv.org/abs/2102.06810)
 
 # Tasks:
 ## Base Tasks: 
@@ -10,6 +14,7 @@
  - [X] Setup Proper Config system
     - Yaml and addict libraries were used.
  - [ ] Clean-up/Update dataloader
+    - [ ] Allow for scaling the images to speed up training.
  - [ ] Allow different batch sizes _(Currently limited by compute capabilities)_
  - [ ] Will using target object segmentation help?
     - Motivation: Prior dense descriptors used masks to sample.
