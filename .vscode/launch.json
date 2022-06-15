@@ -10,6 +10,13 @@
             "request": "launch",
             "program": "./train_pyramidal.py",
             "console": "integratedTerminal",
+        },        
+        {
+            "name": "Train Dense",
+            "type": "python",
+            "request": "launch",
+            "program": "./train_densenet.py",
+            "console": "integratedTerminal",
         },
         {
             "name": "Python: Current File",
